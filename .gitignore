@@ -1,0 +1,47 @@
+# ========================
+# GLOBAL & SYSTEM FILES
+# ========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ========================
+# FRONTEND (Node/React)
+# ========================
+node_modules/
+build/
+dist/
+coverage/
+.npm
+*.log
+
+# ========================
+# BACKEND (Python/Django)
+# ========================
+# Python bytecode (cache)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Django Local Database (Don't commit this!)
+db.sqlite3
+db.sqlite3-journal
+
+# Virtual Environments (where you installed python libs)
+venv/
+.venv/
+env/
+.env_bk/
+
+# Django Media (User uploads)
+media/
+static/
+
+# ========================
+# SECURITY (Environment vars)
+# ========================
+.env
+.env.local
+.env.*.local
