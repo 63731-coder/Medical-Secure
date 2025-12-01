@@ -31,15 +31,19 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    'rest_framework',   # To create API
-    'corsheaders',      # To give authorisation to Vue.js
-    'core',
+    # Django natives
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Tiers (third-party)
+    'rest_framework',
+    'rest_framework.authtoken',  # Pour authentification Token simple
+    'corsheaders',
+    # Nos apps
+    'core',
 ]
 
 MIDDLEWARE = [
@@ -102,12 +106,14 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Configuration DRF (Django REST Framework)
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',  # Token simple pour commencer
+        'rest_framework.authentication.SessionAuthentication',  # Pour l'admin Django
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated', # Par défaut, tout est privé
+        'rest_framework.permissions.IsAuthenticated',  # Tout est privé par défaut
     ],
 }
 
@@ -128,6 +134,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Configuration des fichiers uploadés (Media files)
+import os
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
