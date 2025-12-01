@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',  # Pour authentification Token simple
     'corsheaders',
     # Nos apps
-    'core',
+    'med_secure',
 ]
 
 MIDDLEWARE = [
