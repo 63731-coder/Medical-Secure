@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: medical-postgres
+    environment:
+      POSTGRES_DB: medical_secure
+      POSTGRES_USER: medical_user
+      POSTGRES_PASSWORD: secure123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
