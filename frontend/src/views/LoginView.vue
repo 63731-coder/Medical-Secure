@@ -15,17 +15,17 @@ export default {
         async handleLogin() {
             this.errorMessage = ""; // Reset error
             try {
-                // Adjust URL if needed
-                const response = await axios.post("http://127.0.0.1:8000/api/token/", {
+                const response = await axios.post("http://127.0.0.1:8000/api/login/", {
                     username: this.username,
                     password: this.password
                 });
 
                 console.log("Login successful:", response.data);
 
-                // Store tokens securely
-                localStorage.setItem("accessToken", response.data.access);
-                localStorage.setItem("refreshToken", response.data.refresh);
+                // Store token securely
+                localStorage.setItem("accessToken", response.data.token);
+                localStorage.setItem("userId", response.data.user_id);
+                localStorage.setItem("userType", response.data.user_type);
                 
                 // CRITICAL: Generate encryption key from password
                 deriveKeyFromPassword(this.password);
