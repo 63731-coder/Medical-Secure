@@ -119,7 +119,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Configuration DRF (Django REST Framework)
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',  # Token simple pour commencer
+        'med_secure.keycloak_auth.KeycloakAuthentication',  # Keycloak JWT authentication
         'rest_framework.authentication.SessionAuthentication',  # Pour l'admin Django
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -161,3 +161,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# ===========================
+# KEYCLOAK CONFIGURATION
+# ===========================
+KEYCLOAK_SERVER_URL = 'http://localhost:8080'
+KEYCLOAK_REALM = 'medical-realm'
+KEYCLOAK_CLIENT_ID = 'medical-app'
+KEYCLOAK_CLIENT_SECRET = 'o6HkeCbEUl5UpPxkq1SC7vvTeENRCUPq'

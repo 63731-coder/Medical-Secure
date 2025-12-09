@@ -25,3 +25,9 @@ qrcode==8.2
 six==1.17.0
 sqlparse==0.5.3
 tzdata==2025.2
+
+# Keycloak integration
+python-keycloak==5.8.1
+python-jose[cryptography]==3.3.0
+requests==2.32.3
+cryptography==42.0.5

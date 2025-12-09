@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
+import LoginViewKeycloak from '../views/LoginViewKeycloak.vue'
+import CallbackView from '../views/CallbackView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import ProfileView from '../views/ProfileView.vue'
 
@@ -21,7 +23,17 @@ const router = createRouter({
         {
             path: '/login',
             name: 'login',
-            component: LoginView
+            component: LoginViewKeycloak  // New Keycloak login
+        },
+        {
+            path: '/login-legacy',
+            name: 'login-legacy',
+            component: LoginView  // Old password login
+        },
+        {
+            path: '/callback',  // OAuth2 callback route
+            name: 'callback',
+            component: CallbackView
         },
         {
             path: '/register',   // <--- NOUVELLE ROUTE
