@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Doctor, Patient, MedicalFile
+from .models import Doctor, Patient, MedicalFile, AppointmentRequest, FileActionRequest, Notification, AuditLog
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -30,13 +30,82 @@ class PatientSerializer(serializers.ModelSerializer):
 
 
 class MedicalFileSerializer(serializers.ModelSerializer):
-    """Medical file with metadata"""
+    """Medical file with metadata. Sensitive fields (file URL, name, created_at)
+    are only exposed to allowed users (patient owner, uploader, or appointed doctor
+    after patient approval).
+    """
     uploaded_by = UserSerializer(read_only=True)
-    
+    file = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
+
     class Meta:
         model = MedicalFile
-        fields = ['id', 'file', 'name', 'description', 'created_at', 'uploaded_by']
-        read_only_fields = ['uploaded_by', 'created_at']
+        fields = ['id', 'file', 'name', 'description', 'created_at', 'uploaded_by', 'approved']
+        read_only_fields = ['uploaded_by', 'created_at', 'approved']
+
+    def _user_is_patient_owner(self, user, medical_file):
+        return hasattr(user, 'patient_profile') and medical_file.patient == user.patient_profile
+
+    def _user_is_uploader(self, user, medical_file):
+        return medical_file.uploaded_by == user
+
+    def _user_is_appointed_doctor(self, user, medical_file):
+        return hasattr(user, 'doctor_profile') and medical_file.patient.appointed_doctors.filter(id=user.doctor_profile.id).exists()
+
+    def _can_view_sensitive(self, user, medical_file):
+        # Patient owner always can
+        if self._user_is_patient_owner(user, medical_file):
+            return True
+        # Uploader may view their own upload
+        if self._user_is_uploader(user, medical_file):
+            return True
+        # Appointed doctor can view only if file approved
+        if self._user_is_appointed_doctor(user, medical_file) and medical_file.approved:
+            return True
+        return False
+
+    def get_file(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user and self._can_view_sensitive(user, obj):
+            # Return download endpoint rather than direct storage URL
+            return request.build_absolute_uri(f"/api/files/{obj.id}/download/")
+        return None
+
+    def get_name(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user and self._can_view_sensitive(user, obj):
+            return obj.name
+        return None
+
+    def get_created_at(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user and self._can_view_sensitive(user, obj):
+            return obj.created_at
+        return None
+
+
+class AppointmentRequestSerializer(serializers.ModelSerializer):
+    doctor = DoctorSerializer(read_only=True)
+    patient = PatientSerializer(read_only=True)
+
+    class Meta:
+        model = AppointmentRequest
+        fields = ['id', 'doctor', 'patient', 'status', 'created_at']
+
+
+class FileActionRequestSerializer(serializers.ModelSerializer):
+    requested_by = UserSerializer(read_only=True)
+    medical_file = MedicalFileSerializer(read_only=True)
+    target_patient = PatientSerializer(read_only=True)
+
+    class Meta:
+        model = FileActionRequest
+        fields = ['id', 'medical_file', 'target_patient', 'action_type', 'status', 'requested_by', 
+                 'note', 'file', 'name', 'description', 'created_at']
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -81,3 +150,41 @@ class RegisterSerializer(serializers.ModelSerializer):
             Doctor.objects.create(user=user, organisation=organisation)
         
         return user
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """Notification with related objects"""
+    recipient = UserSerializer(read_only=True)
+    sender = UserSerializer(read_only=True)
+    file_action_request = FileActionRequestSerializer(read_only=True)
+    appointment_request = AppointmentRequestSerializer(read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = ['id', 'recipient', 'sender', 'notification_type', 'title', 'message',
+                 'file_action_request', 'appointment_request', 'is_read', 'created_at', 'read_at']
+        read_only_fields = ['created_at', 'read_at']
+
+    def create(self, validated_data):
+        """Create notification with automatic message formatting"""
+        notification = super().create(validated_data)
+        # Format message based on type
+        if notification.file_action_request:
+            action = notification.file_action_request.action_type
+            file_name = notification.file_action_request.name or notification.file_action_request.medical_file.name
+            notification.message = f"Doctor {notification.sender.get_full_name()} wants to {action} file: {file_name}"
+            notification.save()
+        return notification
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    """Audit log entry for security tracking"""
+    user = UserSerializer(read_only=True)
+    medical_file = serializers.PrimaryKeyRelatedField(read_only=True)
+    patient = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = AuditLog
+        fields = ['id', 'user', 'action', 'ip_address', 'user_agent', 'medical_file', 
+                 'patient', 'details', 'success', 'error_message', 'created_at']
+        read_only_fields = ['created_at']

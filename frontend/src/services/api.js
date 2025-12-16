@@ -73,5 +73,80 @@ export default {
     // Patients
     getPatients() {
         return apiClient.get('/patients/');
+    },
+    
+    // Notifications
+    getNotifications() {
+        return apiClient.get('/notifications/');
+    },
+    
+    getNotification(id) {
+        return apiClient.get(`/notifications/${id}/`);
+    },
+    
+    markNotificationAsRead(id) {
+        return apiClient.post(`/notifications/${id}/mark-read/`);
+    },
+    
+    markAllNotificationsAsRead() {
+        return apiClient.post('/notifications/mark-all-read/');
+    },
+    
+    getUnreadNotificationCount() {
+        return apiClient.get('/notifications/unread-count/');
+    },
+    
+    // Appointment Requests
+    requestAppointment(patientId) {
+        return apiClient.post('/appointments/request/', { patient_id: patientId });
+    },
+    
+    getAppointmentRequests(patientId) {
+        return apiClient.get(`/patients/${patientId}/appointment-requests/`);
+    },
+    
+    respondToAppointmentRequest(patientId, requestId, action) {
+        return apiClient.post(`/patients/${patientId}/appointment-requests/${requestId}/respond/`, { action });
+    },
+    
+    // File Action Requests
+    getPendingFileActions() {
+        return apiClient.get('/files/pending-file-actions/');
+    },
+    
+    respondToFileAction(requestId, action) {
+        return apiClient.post('/files/respond-file-action/', { 
+            request_id: requestId, 
+            action 
+        });
+    },
+    
+    // Audit Logs
+    getAuditLogs() {
+        return apiClient.get('/audit-logs/');
+    },
+    
+    getSecurityEvents() {
+        return apiClient.get('/audit-logs/security-events/');
+    },
+    
+    // File operations with doctor workflow
+    uploadFileAsDoctor(formData, patientId) {
+        formData.append('patient_id', patientId);
+        return apiClient.post('/files/', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+    },
+    
+    modifyFile(fileId, formData) {
+        return apiClient.patch(`/files/${fileId}/`, formData);
+    },
+    
+    downloadFileSecure(fileId) {
+        return apiClient.get(`/files/${fileId}/download/`, {
+            responseType: 'blob'
+        });
     }
 };

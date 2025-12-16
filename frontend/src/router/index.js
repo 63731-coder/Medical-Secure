@@ -24,7 +24,7 @@ const router = createRouter({
             component: LoginView
         },
         {
-            path: '/register',   // <--- NOUVELLE ROUTE
+            path: '/register', 
             name: 'register',
             component: RegisterView
         },
@@ -57,6 +57,24 @@ const router = createRouter({
             path: '/records',
             name: 'records',
             component: () => import('../views/MedicalRecordsView.vue')
+        },
+        {
+            path: '/notifications',
+            name: 'notifications',
+            component: () => import('../views/NotificationsView.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/pending-requests',
+            name: 'pending-requests',
+            component: () => import('../views/PendingRequestsView.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/audit-logs',
+            name: 'audit-logs',
+            component: () => import('../views/AuditLogView.vue'),
+            meta: { requiresAuth: true }
         },
     ]
 })
