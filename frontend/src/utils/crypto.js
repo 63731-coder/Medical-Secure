@@ -5,6 +5,12 @@ import CryptoJS from 'crypto-js';
 // et n'est JAMAIS envoyée au serveur.
 let SECRET_KEY = null;
 
+// Try to restore key from sessionStorage on module load
+const storedKey = sessionStorage.getItem('encryptionKey');
+if (storedKey) {
+    SECRET_KEY = storedKey;
+}
+
 // Fonction pour générer la clé secrète à partir du mot de passe (lors du Login)
 export const deriveKeyFromPassword = (password, salt = 'mon_sel_fixe_pour_le_projet') => {
     // On utilise PBKDF2 qui est standard pour transformer un mot de passe en clé robuste
@@ -13,7 +19,15 @@ export const deriveKeyFromPassword = (password, salt = 'mon_sel_fixe_pour_le_pro
         iterations: 1000
     });
     SECRET_KEY = key.toString();
+    // Store in sessionStorage (cleared when browser/tab closes)
+    sessionStorage.setItem('encryptionKey', SECRET_KEY);
     console.log("Clé de chiffrement générée (en mémoire uniquement).");
+};
+
+// Clear encryption key on logout
+export const clearEncryptionKey = () => {
+    SECRET_KEY = null;
+    sessionStorage.removeItem('encryptionKey');
 };
 
 // Fonction pour chiffrer une donnée (ex: le nom du patient)

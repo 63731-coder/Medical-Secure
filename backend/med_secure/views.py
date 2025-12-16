@@ -275,16 +275,21 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
         
         # If patient uploads for themselves
         if hasattr(user, 'patient_profile'):
-            serializer.save(
-                patient=user.patient_profile,
-                uploaded_by=user
-            )
+            try:
+                serializer.save(
+                    patient=user.patient_profile,
+                    uploaded_by=user
+                )
+            except Exception as e:
+                raise drf_serializers.ValidationError(
+                    f"Failed to save file: {str(e)}"
+                )
         
         # If doctor uploads (patient_id must be provided)
         elif hasattr(user, 'doctor_profile'):
             patient_id = self.request.data.get('patient_id')
             if not patient_id:
-                raise serializers.ValidationError(
+                raise drf_serializers.ValidationError(
                     "patient_id is required for doctor uploads"
                 )
             
@@ -299,7 +304,11 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                 
                 serializer.save(patient=patient, uploaded_by=user)
             except Patient.DoesNotExist:
-                raise serializers.ValidationError("Patient not found")
+                raise drf_serializers.ValidationError("Patient not found")
+        else:
+            raise drf_serializers.ValidationError(
+                "User must have either a patient or doctor profile"
+            )
     
     def destroy(self, request, *args, **kwargs):
         """

@@ -22,17 +22,22 @@ const handleUpload = async () => {
     loading.value = true;
     status.value = { type: 'info', message: "Reading and encrypting file..." };
 
-    // 1. Read file locally
+    // 1. Read file locally as ArrayBuffer (works for all file types including PDFs)
     const reader = new FileReader();
-    reader.readAsText(file.value); // For PoC (Use readAsArrayBuffer for PDFs/Images in production)
+    reader.readAsArrayBuffer(file.value);
 
     reader.onload = async (e) => {
         try {
-            const rawContent = e.target.result;
+            const arrayBuffer = e.target.result;
+            // Convert ArrayBuffer to Base64 string for encryption
+            const uint8Array = new Uint8Array(arrayBuffer);
+            let binary = '';
+            uint8Array.forEach(byte => binary += String.fromCharCode(byte));
+            const base64Content = btoa(binary);
 
             // 2. Encrypt Content (Client-Side)
             // The server NEVER sees the rawContent
-            const encryptedContent = encryptData(rawContent);
+            const encryptedContent = encryptData(base64Content);
 
             if (!encryptedContent) {
                 throw new Error("Encryption failed. Are you logged in?");
@@ -40,16 +45,17 @@ const handleUpload = async () => {
 
             // 3. Prepare Form Data (Django expects a file)
             // We create a new Blob from the encrypted string
-            const encryptedBlob = new Blob([encryptedContent], { type: 'text/plain' });
+            const encryptedBlob = new Blob([encryptedContent], { type: 'application/octet-stream' });
             const formData = new FormData();
             formData.append('name', title.value);
+            formData.append('description', ''); // Add empty description field
             formData.append('file', encryptedBlob, file.value.name + ".enc"); // Add .enc extension
 
             // 4. Send to Server
             status.value = { type: 'info', message: "Uploading encrypted data..." };
             const token = localStorage.getItem('accessToken');
 
-            await axios.post('http://127.0.0.1:8000/api/medical-files/', formData, {
+            await axios.post('http://127.0.0.1:8000/api/files/', formData, {
                 headers: {
                     'Authorization': `Token ${token}`,
                     'Content-Type': 'multipart/form-data'
@@ -61,8 +67,11 @@ const handleUpload = async () => {
             file.value = null;
 
         } catch (error) {
-            console.error(error);
-            status.value = { type: 'error', message: "Upload failed: " + error.message };
+            console.error('Upload error:', error);
+            console.error('Response data:', error.response?.data);
+            console.error('Response status:', error.response?.status);
+            const errorMsg = error.response?.data?.detail || error.response?.data?.error || error.message;
+            status.value = { type: 'error', message: "Upload failed: " + errorMsg };
         } finally {
             loading.value = false;
         }

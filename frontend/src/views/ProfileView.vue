@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
+import { clearEncryptionKey } from '../utils/crypto';
 
 const router = useRouter();
 const user = ref({ name: 'Patient', email: '—', role: 'Patient' });
@@ -13,8 +14,13 @@ onMounted(() => {
 });
 
 function logout() {
+    // Clear encryption key
+    clearEncryptionKey();
     // Limpiar estado local y redirigir (ajustar según autenticación real)
     localStorage.removeItem('token');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userType');
     router.push('/login');
 }
 

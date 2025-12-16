@@ -12,7 +12,7 @@ const error = ref("");
 const fetchRecords = async () => {
     try {
         const token = localStorage.getItem('accessToken');
-        const response = await axios.get('http://127.0.0.1:8000/api/medical-files/', {
+        const response = await axios.get('http://127.0.0.1:8000/api/files/', {
             headers: { 'Authorization': `Token ${token}` }
         });
         
@@ -30,7 +30,7 @@ const handleDownload = async (record) => {
         const token = localStorage.getItem('accessToken');
         
         // 1. Download encrypted blob from server
-        const response = await axios.get(`http://127.0.0.1:8000/api/medical-files/${record.id}/download/`, {
+        const response = await axios.get(`http://127.0.0.1:8000/api/files/${record.id}/download/`, {
             headers: { 'Authorization': `Token ${token}` },
             responseType: 'blob'
         });
@@ -39,14 +39,21 @@ const handleDownload = async (record) => {
         const encryptedText = await response.data.text();
         
         // 3. Decrypt using client-side key
-        const decryptedContent = decryptData(encryptedText);
+        const decryptedBase64 = decryptData(encryptedText);
         
-        if (!decryptedContent) {
+        if (!decryptedBase64) {
             throw new Error("Decryption failed. Wrong key?");
         }
         
-        // 4. Create download link for decrypted file
-        const blob = new Blob([decryptedContent], { type: 'text/plain' });
+        // 4. Convert Base64 back to binary
+        const binaryString = atob(decryptedBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        // 5. Create download link for decrypted file
+        const blob = new Blob([bytes], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
