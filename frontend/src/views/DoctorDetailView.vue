@@ -1,29 +1,78 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-// import axios from 'axios';
+import axios from 'axios';
+import ConfirmModal from '../components/ConfirmModal.vue';
 
-const route = useRoute(); // To get ID from URL
-const router = useRouter(); // To go back
+const route = useRoute();
+const router = useRouter();
 const doctorId = route.params.id;
 
 const doctor = ref(null);
 const loading = ref(true);
+const error = ref('');
+const currentPatientId = ref(null);
+const showConfirmModal = ref(false);
+const isAppointed = ref(false);
 
-onMounted(() => {
-    // Mock Fetch based on doctorId
-    setTimeout(() => {
-        doctor.value = {
-            id: doctorId,
-            name: "Dr. Gregory House",
-            specialty: "Diagnostic Medicine",
-            email: "house@securemed.com",
-            hospital: "Princeton-Plainsboro",
-            bio: "Specializes in solving medical puzzles. Unconventional methods."
-        };
-        loading.value = false;
-    }, 500);
+onMounted(async () => {
+    await fetchDoctor();
 });
+
+const fetchDoctor = async () => {
+    try {
+        const token = localStorage.getItem('accessToken');
+        
+        // Get patient profile
+        const profileRes = await axios.get('http://127.0.0.1:8000/api/profile/', {
+            headers: { 'Authorization': `Token ${token}` }
+        });
+        
+        currentPatientId.value = profileRes.data.profile.id;
+        
+        // Check if doctor is appointed
+        const appointedDoctorIds = profileRes.data.profile.appointed_doctors.map(d => d.id);
+        isAppointed.value = appointedDoctorIds.includes(parseInt(doctorId));
+        
+        // Get doctor details
+        const doctorRes = await axios.get(`http://127.0.0.1:8000/api/doctors/${doctorId}/`, {
+            headers: { 'Authorization': `Token ${token}` }
+        });
+        
+        doctor.value = doctorRes.data;
+        loading.value = false;
+    } catch (e) {
+        console.error("Failed to load doctor:", e);
+        error.value = "Failed to load doctor details.";
+        loading.value = false;
+    }
+};
+
+const openRevokeConfirmation = () => {
+    showConfirmModal.value = true;
+};
+
+const confirmRevoke = async () => {
+    showConfirmModal.value = false;
+    
+    try {
+        const token = localStorage.getItem('accessToken');
+        await axios.delete(
+            `http://127.0.0.1:8000/api/patients/${currentPatientId.value}/remove-doctor/${doctorId}/`,
+            { headers: { 'Authorization': `Token ${token}` } }
+        );
+        
+        // Redirect back to doctors list
+        router.push('/doctors');
+    } catch (e) {
+        console.error("Failed to revoke doctor:", e);
+        error.value = 'Failed to revoke doctor access.';
+    }
+};
+
+const cancelRevoke = () => {
+    showConfirmModal.value = false;
+};
 
 const goBack = () => router.back();
 </script>
@@ -36,6 +85,7 @@ const goBack = () => router.back();
         </button>
 
         <div v-if="loading" class="text-center p-10">Loading details...</div>
+        <div v-else-if="error" class="text-center p-10 text-red-600">{{ error }}</div>
 
         <div v-else class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
             <div class="h-32 bg-blue-600"></div>
@@ -43,14 +93,14 @@ const goBack = () => router.back();
                 <div class="-mt-12 mb-6">
                     <div class="w-24 h-24 rounded-full bg-white p-1 shadow-md inline-block">
                         <div
-                            class="w-full h-full rounded-full bg-gray-200 flex items-center justify-center text-2xl text-gray-500">
-                            👨‍⚕️
+                            class="w-full h-full rounded-full bg-gradient-to-br from-purple-400 to-indigo-600 flex items-center justify-center text-3xl text-white font-bold">
+                            {{ doctor.user.last_name.charAt(0) }}
                         </div>
                     </div>
                 </div>
 
-                <h1 class="text-3xl font-bold text-gray-900">{{ doctor.name }}</h1>
-                <p class="text-blue-600 font-medium mb-4">{{ doctor.specialty }}</p>
+                <h1 class="text-3xl font-bold text-gray-900">Dr. {{ doctor.user.first_name }} {{ doctor.user.last_name }}</h1>
+                <p class="text-blue-600 font-medium mb-4">{{ doctor.organisation }}</p>
 
                 <div class="space-y-4 text-gray-600">
                     <div class="flex items-center">
@@ -59,7 +109,7 @@ const goBack = () => router.back();
                                 d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4">
                             </path>
                         </svg>
-                        {{ doctor.hospital }}
+                        {{ doctor.organisation }}
                     </div>
                     <div class="flex items-center">
                         <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -67,26 +117,29 @@ const goBack = () => router.back();
                                 d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z">
                             </path>
                         </svg>
-                        {{ doctor.email }}
+                        {{ doctor.user.email }}
                     </div>
-
-                    <hr class="border-gray-100 my-4" />
-
-                    <h3 class="font-bold text-gray-800">Biography</h3>
-                    <p class="leading-relaxed text-sm">{{ doctor.bio }}</p>
                 </div>
 
-                <div class="mt-8 flex gap-4">
-                    <button
-                        class="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-2 rounded-lg font-medium transition">
+                <div v-if="isAppointed" class="mt-8">
+                    <button @click="openRevokeConfirmation"
+                        class="w-full bg-red-50 text-red-600 hover:bg-red-100 py-3 rounded-lg font-medium transition">
                         Remove Access
-                    </button>
-                    <button
-                        class="flex-1 bg-blue-600 text-white hover:bg-blue-700 py-2 rounded-lg font-medium transition">
-                        Send Message
                     </button>
                 </div>
             </div>
         </div>
+
+        <!-- Confirmation Modal -->
+        <ConfirmModal
+            :show="showConfirmModal"
+            title="Revoke Doctor Access"
+            :message="doctor ? `Are you sure you want to revoke access for Dr. ${doctor.user.first_name} ${doctor.user.last_name}? They will no longer be able to view your medical records.` : ''"
+            confirmText="Revoke Access"
+            cancelText="Cancel"
+            :isDangerous="true"
+            @confirm="confirmRevoke"
+            @cancel="cancelRevoke"
+        />
     </div>
 </template>

@@ -8,35 +8,57 @@ const records = ref([]);
 const loading = ref(true);
 const error = ref("");
 
-// Mock Data (Replace with API call)
+// Fetch medical records from API
 const fetchRecords = async () => {
     try {
-        // const token = localStorage.getItem('accessToken');
-        // const res = await axios.get('http://127.0.0.1:8000/api/medical-files/', ...);
-        // records.value = res.data;
-
-        // MOCK
-        setTimeout(() => {
-            records.value = [
-                { id: 1, title: "Blood Test", date: "2025-01-10", size: "12kb" },
-                { id: 2, title: "MRI Scan Report", date: "2024-12-22", size: "45kb" },
-            ];
-            loading.value = false;
-        }, 1000);
+        const token = localStorage.getItem('accessToken');
+        const response = await axios.get('http://127.0.0.1:8000/api/medical-files/', {
+            headers: { 'Authorization': `Token ${token}` }
+        });
+        
+        records.value = response.data;
+        loading.value = false;
     } catch (e) {
+        console.error("Failed to load records:", e);
         error.value = "Failed to load records.";
         loading.value = false;
     }
 };
 
 const handleDownload = async (record) => {
-    alert(`Downloading and Decrypting ${record.title}... (Check Console)`);
-    // Logic:
-    // 1. Axios GET (blob)
-    // 2. Read Blob
-    // 3. decryptData(blobContent)
-    // 4. Create download link for user
-    console.log("Decryption logic initiated for ID:", record.id);
+    try {
+        const token = localStorage.getItem('accessToken');
+        
+        // 1. Download encrypted blob from server
+        const response = await axios.get(`http://127.0.0.1:8000/api/medical-files/${record.id}/download/`, {
+            headers: { 'Authorization': `Token ${token}` },
+            responseType: 'blob'
+        });
+        
+        // 2. Read blob as text
+        const encryptedText = await response.data.text();
+        
+        // 3. Decrypt using client-side key
+        const decryptedContent = decryptData(encryptedText);
+        
+        if (!decryptedContent) {
+            throw new Error("Decryption failed. Wrong key?");
+        }
+        
+        // 4. Create download link for decrypted file
+        const blob = new Blob([decryptedContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = record.name.replace('.enc', ''); // Remove .enc extension
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        console.log(`✅ File ${record.name} decrypted and downloaded`);
+    } catch (err) {
+        console.error("Download/decryption error:", err);
+        error.value = `Failed to decrypt ${record.name}`;
+    }
 };
 
 onMounted(fetchRecords);
@@ -64,7 +86,7 @@ onMounted(fetchRecords);
                             Document Title</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date
                         </th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description
                         </th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Action</th>
@@ -72,12 +94,12 @@ onMounted(fetchRecords);
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="file in records" :key="file.id" class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ file.title }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ file.date }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ file.size }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ file.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ new Date(file.created_at).toLocaleDateString() }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ file.description || 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button @click="handleDownload(file)" class="text-blue-600 hover:text-blue-900 font-bold">
-                                Decrypt & Download
+                                🔓 Decrypt & Download
                             </button>
                         </td>
                     </tr>

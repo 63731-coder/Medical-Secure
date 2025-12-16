@@ -2,16 +2,15 @@
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import axios from 'axios';
-import ConfirmModal from '../components/ConfirmModal.vue';
+import StatusAlert from '../components/StatusAlert.vue';
 
-const doctors = ref([]);
+const query = ref('');
 const allDoctors = ref([]);
 const appointedDoctorIds = ref([]);
 const loading = ref(true);
 const error = ref('');
 const currentPatientId = ref(null);
-const showConfirmModal = ref(false);
-const doctorToRevoke = ref(null);
+const successMessage = ref('');
 
 onMounted(async () => {
     await fetchDoctors();
@@ -41,9 +40,6 @@ const fetchDoctors = async () => {
         });
         
         allDoctors.value = doctorsRes.data;
-        
-        // Show only appointed doctors
-        doctors.value = doctorsRes.data.filter(d => appointedDoctorIds.value.includes(d.id));
         loading.value = false;
     } catch (e) {
         console.error("Failed to fetch doctors:", e);
@@ -52,60 +48,71 @@ const fetchDoctors = async () => {
     }
 };
 
-const openRevokeConfirmation = (doctor) => {
-    doctorToRevoke.value = doctor;
-    showConfirmModal.value = true;
-};
-
-const confirmRevoke = async () => {
-    showConfirmModal.value = false;
-    
-    if (!doctorToRevoke.value) return;
-    
+const addDoctor = async (doctorId) => {
     try {
+        successMessage.value = '';
+        error.value = '';
+        
         const token = localStorage.getItem('accessToken');
-        await axios.delete(
-            `http://127.0.0.1:8000/api/patients/${currentPatientId.value}/remove-doctor/${doctorToRevoke.value.id}/`,
+        await axios.post(
+            `http://127.0.0.1:8000/api/patients/${currentPatientId.value}/add_doctor/`,
+            { doctor_id: doctorId },
             { headers: { 'Authorization': `Token ${token}` } }
         );
         
-        // Refresh list
-        await fetchDoctors();
-        error.value = ''; // Clear any previous errors
+        // Add to appointed list
+        appointedDoctorIds.value.push(doctorId);
+        successMessage.value = 'Doctor added successfully!';
+        
+        // Auto-clear message after 3 seconds
+        setTimeout(() => {
+            successMessage.value = '';
+        }, 3000);
     } catch (e) {
-        console.error("Failed to revoke doctor:", e);
-        error.value = 'Failed to revoke doctor access.';
+        console.error("Failed to add doctor:", e);
+        error.value = 'Failed to add doctor. Please try again.';
     }
-    
-    doctorToRevoke.value = null;
 };
 
-const cancelRevoke = () => {
-    showConfirmModal.value = false;
-    doctorToRevoke.value = null;
+const isAppointed = (doctorId) => {
+    return appointedDoctorIds.value.includes(doctorId);
 };
 
-
+const filtered = computed(() => {
+    const q = query.value.trim().toLowerCase();
+    if (!q) return allDoctors.value;
+    return allDoctors.value.filter(d => {
+        const name = `${d.user.first_name} ${d.user.last_name}`.toLowerCase();
+        const org = d.organisation.toLowerCase();
+        return name.includes(q) || org.includes(q);
+    });
+});
 </script>
 
 <template>
     <div class="max-w-5xl mx-auto py-8">
-        <div class="flex items-center justify-between mb-6">
-            <div>
-                <h1 class="text-2xl font-extrabold text-gray-900">My Appointed Doctors</h1>
-                <p class="text-sm text-gray-500">Manage the doctors who can access your medical records.</p>
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <RouterLink to="/doctors" class="text-blue-600 hover:text-blue-800">
+                    ← Back to My Doctors
+                </RouterLink>
             </div>
-            <RouterLink to="/search-doctors"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-                + Search Doctors
-            </RouterLink>
+            <h1 class="text-2xl font-extrabold text-gray-900">Search Doctors</h1>
+            <p class="text-sm text-gray-500">Find and appoint doctors to access your medical records.</p>
         </div>
 
+        <div class="mb-6">
+            <input v-model="query" type="search" placeholder="Search by name or hospital"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+        </div>
+
+        <StatusAlert v-if="successMessage" type="success" :message="successMessage" />
+        <StatusAlert v-if="error" type="error" :message="error" />
+
         <div v-if="loading" class="text-center py-10 text-gray-500">Loading doctors...</div>
-        <div v-else-if="error" class="text-center py-10 text-red-600">{{ error }}</div>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div v-for="doctor in doctors" :key="doctor.id"
+            <div v-for="doctor in filtered" :key="doctor.id"
                 class="bg-white p-4 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
                 <div class="flex items-center gap-4">
                     <div
@@ -121,29 +128,25 @@ const cancelRevoke = () => {
                 <div class="flex items-center gap-2">
                     <RouterLink :to="{ name: 'doctor-detail', params: { id: doctor.id } }"
                         class="text-sm bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-100 px-3 py-2 rounded-md">
-                        View</RouterLink>
-                    <button @click="openRevokeConfirmation(doctor)"
-                        class="text-sm bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 px-3 py-2 rounded-md">
-                        Revoke
+                        View
+                    </RouterLink>
+                    <button 
+                        v-if="!isAppointed(doctor.id)"
+                        @click="addDoctor(doctor.id)"
+                        class="text-sm bg-green-50 hover:bg-green-100 text-green-700 border border-green-100 px-3 py-2 rounded-md">
+                        + Add
                     </button>
+                    <span 
+                        v-else
+                        class="text-sm text-gray-500 px-3 py-2">
+                        ✓ Appointed
+                    </span>
                 </div>
             </div>
         </div>
 
-        <div v-if="!loading && !error && !doctors.length" class="mt-6 text-center text-gray-500">
-            No appointed doctors found.
+        <div v-if="!loading && !filtered.length" class="mt-6 text-center text-gray-500">
+            No doctors found.
         </div>
-
-        <!-- Confirmation Modal -->
-        <ConfirmModal
-            :show="showConfirmModal"
-            title="Revoke Doctor Access"
-            :message="doctorToRevoke ? `Are you sure you want to revoke access for Dr. ${doctorToRevoke.user.first_name} ${doctorToRevoke.user.last_name}? They will no longer be able to view your medical records.` : ''"
-            confirmText="Revoke Access"
-            cancelText="Cancel"
-            :isDangerous="true"
-            @confirm="confirmRevoke"
-            @cancel="cancelRevoke"
-        />
     </div>
 </template>

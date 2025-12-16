@@ -49,8 +49,11 @@ export default {
         });
     },
     
+    // Download encrypted file (returns blob for client-side decryption)
     downloadFile(fileId) {
-        return apiClient.get(`/files/${fileId}/`);
+        return apiClient.get(`/files/${fileId}/download/`, {
+            responseType: 'blob'
+        });
     },
     
     deleteFile(fileId) {

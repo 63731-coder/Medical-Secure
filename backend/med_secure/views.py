@@ -110,13 +110,30 @@ class ProfileView(generics.RetrieveAPIView):
         user_data = UserSerializer(user).data
         
         if hasattr(user, 'patient_profile'):
-            profile = PatientSerializer(user.patient_profile).data
-            user_data['profile'] = profile
-            user_data['user_type'] = 'patient'
+            try:
+                profile = PatientSerializer(user.patient_profile).data
+                user_data['profile'] = profile
+                user_data['user_type'] = 'patient'
+            except Exception as e:
+                return Response(
+                    {'error': f'Failed to load patient profile: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
         elif hasattr(user, 'doctor_profile'):
-            profile = DoctorSerializer(user.doctor_profile).data
-            user_data['profile'] = profile
-            user_data['user_type'] = 'doctor'
+            try:
+                profile = DoctorSerializer(user.doctor_profile).data
+                user_data['profile'] = profile
+                user_data['user_type'] = 'doctor'
+            except Exception as e:
+                return Response(
+                    {'error': f'Failed to load doctor profile: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        else:
+            return Response(
+                {'error': 'No profile found. User must be either a patient or doctor.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
         
         return Response(user_data)
 
@@ -301,3 +318,32 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                           status=status.HTTP_403_FORBIDDEN)
         
         return super().destroy(request, *args, **kwargs)
+    
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        """
+        Download encrypted file
+        GET /api/medical-files/{id}/download/
+        Returns the encrypted file blob (client will decrypt)
+        """
+        from django.http import FileResponse
+        
+        medical_file = self.get_object()
+        
+        # Security check: user has access to this file
+        if hasattr(request.user, 'patient_profile'):
+            if medical_file.patient != request.user.patient_profile:
+                return Response({'error': 'Permission denied'}, 
+                              status=status.HTTP_403_FORBIDDEN)
+        elif hasattr(request.user, 'doctor_profile'):
+            if not medical_file.patient.appointed_doctors.filter(
+                id=request.user.doctor_profile.id
+            ).exists():
+                return Response({'error': 'Permission denied'}, 
+                              status=status.HTTP_403_FORBIDDEN)
+        
+        # Return file (already encrypted)
+        response = FileResponse(medical_file.file.open('rb'))
+        response['Content-Disposition'] = f'attachment; filename="{medical_file.file.name}"'
+        return response
+

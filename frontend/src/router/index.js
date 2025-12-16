@@ -34,6 +34,11 @@ const router = createRouter({
             component: () => import('../views/DoctorListView.vue')
         },
         {
+            path: '/search-doctors',
+            name: 'search-doctors',
+            component: () => import('../views/SearchDoctorsView.vue')
+        },
+        {
             path: '/doctors/:id', // Route dynamique
             name: 'doctor-detail',
             component: () => import('../views/DoctorDetailView.vue')

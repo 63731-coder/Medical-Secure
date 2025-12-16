@@ -9,6 +9,9 @@ export default {
             email: "",
             password: "",
             confirmPassword: "",
+            firstName: "",
+            lastName: "",
+            dateOfBirth: "",
             errorMessage: "",
             successMessage: ""
         };
@@ -30,13 +33,19 @@ export default {
             }
 
             try {
-                // 2. Call Django API (Ensure this endpoint exists in your backend!)
-                // Example URL: http://127.0.0.1:8000/api/register/
-                await axios.post("http://127.0.0.1:8000/api/register/", {
+                // 2. Prepare registration data (always patient)
+                const registrationData = {
                     username: this.username,
                     email: this.email,
-                    password: this.password
-                });
+                    password: this.password,
+                    first_name: this.firstName,
+                    last_name: this.lastName,
+                    user_type: 'patient',
+                    date_of_birth: this.dateOfBirth
+                };
+
+                // 3. Call Django API
+                await axios.post("http://127.0.0.1:8000/api/register/", registrationData);
 
                 this.successMessage = "Account created successfully! Redirecting to login...";
                 
@@ -68,6 +77,48 @@ export default {
         
         <form @submit.prevent="handleRegister" class="p-8 space-y-4">
             
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="firstName">
+                        First Name
+                    </label>
+                    <input 
+                        id="firstName"
+                        type="text" 
+                        v-model="firstName" 
+                        required 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+                        placeholder="John"
+                    />
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="lastName">
+                        Last Name
+                    </label>
+                    <input 
+                        id="lastName"
+                        type="text" 
+                        v-model="lastName" 
+                        required 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+                        placeholder="Doe"
+                    />
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="dateOfBirth">
+                    Date of Birth
+                </label>
+                <input 
+                    id="dateOfBirth"
+                    type="date" 
+                    v-model="dateOfBirth" 
+                    required 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+                />
+            </div>
+
             <div>
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="username">
                     Username

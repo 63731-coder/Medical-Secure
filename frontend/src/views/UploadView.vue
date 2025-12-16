@@ -42,7 +42,7 @@ const handleUpload = async () => {
             // We create a new Blob from the encrypted string
             const encryptedBlob = new Blob([encryptedContent], { type: 'text/plain' });
             const formData = new FormData();
-            formData.append('title', title.value);
+            formData.append('name', title.value);
             formData.append('file', encryptedBlob, file.value.name + ".enc"); // Add .enc extension
 
             // 4. Send to Server
@@ -51,7 +51,7 @@ const handleUpload = async () => {
 
             await axios.post('http://127.0.0.1:8000/api/medical-files/', formData, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': `Token ${token}`,
                     'Content-Type': 'multipart/form-data'
                 }
             });
