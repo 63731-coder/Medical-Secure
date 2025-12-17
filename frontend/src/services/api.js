@@ -76,5 +76,40 @@ export default {
     // Patients
     getPatients() {
         return apiClient.get('/patients/');
+    },
+
+    // All patients (for doctors)
+    getAllPatients() {
+        return apiClient.get('/all-patients/');
+    },
+
+    // Doctor-Patient Requests
+    getRequests() {
+        return apiClient.get('/requests/');
+    },
+
+    createRequest(data) {
+        return apiClient.post('/requests/', data);
+    },
+
+    approveRequest(requestId) {
+        return apiClient.post(`/requests/${requestId}/approve/`);
+    },
+
+    rejectRequest(requestId) {
+        return apiClient.post(`/requests/${requestId}/reject/`);
+    },
+
+    // File Action Requests
+    getFileActionRequests() {
+        return apiClient.get('/file-requests/');
+    },
+
+    approveFileAction(requestId) {
+        return apiClient.post(`/file-requests/${requestId}/approve/`);
+    },
+
+    rejectFileAction(requestId) {
+        return apiClient.post(`/file-requests/${requestId}/reject/`);
     }
 };

@@ -63,6 +63,26 @@ const router = createRouter({
             name: 'records',
             component: () => import('../views/MedicalRecordsView.vue')
         },
+        {
+            path: '/my-patients',
+            name: 'my-patients',
+            component: () => import('../views/MyPatientsView.vue')
+        },
+        {
+            path: '/add-patient',
+            name: 'add-patient',
+            component: () => import('../views/AddPatientView.vue')
+        },
+        {
+            path: '/doctor-requests',
+            name: 'doctor-requests',
+            component: () => import('../views/DoctorRequestsView.vue')
+        },
+        {
+            path: '/file-action-requests',
+            name: 'file-action-requests',
+            component: () => import('../views/FileActionRequestsView.vue')
+        },
     ]
 })
 

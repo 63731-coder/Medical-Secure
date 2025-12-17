@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Doctor, Patient, MedicalFile
+from .models import Doctor, Patient, MedicalFile, DoctorPatientRequest, FileActionRequest
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -81,3 +81,39 @@ class RegisterSerializer(serializers.ModelSerializer):
             Doctor.objects.create(user=user, organisation=organisation)
         
         return user
+
+
+class DoctorPatientRequestSerializer(serializers.ModelSerializer):
+    """Serializer for doctor-patient relationship requests"""
+    doctor = DoctorSerializer(read_only=True)
+    patient = PatientSerializer(read_only=True)
+    requested_by_user = UserSerializer(source='requested_by', read_only=True)
+    
+    class Meta:
+        model = DoctorPatientRequest
+        fields = ['id', 'doctor', 'patient', 'requested_by_user', 'status', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class FileActionRequestSerializer(serializers.ModelSerializer):
+    """Serializer for file action requests (upload, edit, delete) by doctors"""
+    doctor = DoctorSerializer(read_only=True)
+    patient = PatientSerializer(read_only=True)
+    target_file_info = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = FileActionRequest
+        fields = ['id', 'patient', 'doctor', 'action_type', 'status', 
+                 'file_name', 'file_description', 'target_file', 'target_file_info',
+                 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'patient', 'doctor']
+    
+    def get_target_file_info(self, obj):
+        """Get info about the target file for edit/delete actions"""
+        if obj.target_file:
+            return {
+                'id': obj.target_file.id,
+                'name': obj.target_file.name,
+                'description': obj.target_file.description,
+            }
+        return None
