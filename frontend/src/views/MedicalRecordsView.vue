@@ -73,12 +73,8 @@ onMounted(fetchRecords);
 
 <template>
     <div class="max-w-4xl mx-auto mt-8">
-        <div class="flex justify-between items-center mb-6">
+        <div class="mb-6">
             <h1 class="text-3xl font-bold text-gray-900">My Medical Records</h1>
-            <router-link to="/upload"
-                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-                + Upload New
-            </router-link>
         </div>
 
         <StatusAlert v-if="error" type="error" :message="error" />
