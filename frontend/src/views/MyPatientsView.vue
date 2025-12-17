@@ -94,7 +94,7 @@ const cancelRequest = async (requestId) => {
                             Date of Birth: {{ new Date(patient.date_of_birth).toLocaleDateString() }}
                         </p>
                     </div>
-                    <RouterLink :to="`/medical-records?patient_id=${patient.id}`"
+                    <RouterLink :to="`/records?patient_id=${patient.id}`"
                         class="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded text-sm font-medium transition">
                         View Records
                     </RouterLink>

@@ -1,18 +1,46 @@
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { decryptData } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
+import api from '../services/api';
 
+const route = useRoute();
+const router = useRouter();
 const records = ref([]);
 const loading = ref(true);
 const error = ref("");
+const patient = ref(null);
+const patientId = ref(route.query.patient_id);
+
+// Fetch patient info if patient_id is provided
+const fetchPatient = async () => {
+    if (!patientId.value) return;
+    
+    try {
+        const response = await api.getPatients();
+        const foundPatient = response.data.find(p => p.id === parseInt(patientId.value));
+        if (foundPatient) {
+            patient.value = foundPatient;
+        }
+    } catch (e) {
+        console.error("Failed to load patient:", e);
+    }
+};
 
 // Fetch medical records from API
 const fetchRecords = async () => {
     try {
         const token = localStorage.getItem('accessToken');
-        const response = await axios.get('http://127.0.0.1:8000/api/files/', {
+        let url = 'http://127.0.0.1:8000/api/files/';
+        
+        // Add patient filter if patient_id is provided
+        if (patientId.value) {
+            url += `?patient_id=${patientId.value}`;
+        }
+        
+        const response = await axios.get(url, {
             headers: { 'Authorization': `Token ${token}` }
         });
         
@@ -68,13 +96,29 @@ const handleDownload = async (record) => {
     }
 };
 
-onMounted(fetchRecords);
+onMounted(async () => {
+    await fetchPatient();
+    await fetchRecords();
+});
 </script>
 
 <template>
     <div class="max-w-4xl mx-auto mt-8">
         <div class="mb-6">
-            <h1 class="text-3xl font-bold text-gray-900">My Medical Records</h1>
+            <div class="flex items-center mb-2">
+                <button v-if="patientId" @click="router.back()" 
+                    class="mr-4 text-gray-600 hover:text-gray-900 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                </button>
+                <h1 class="text-3xl font-bold text-gray-900">
+                    {{ patient ? `${patient.user.first_name} ${patient.user.last_name}'s Medical Records` : 'My Medical Records' }}
+                </h1>
+            </div>
+            <p v-if="patient" class="text-gray-600 ml-10">
+                Date of Birth: {{ new Date(patient.date_of_birth).toLocaleDateString() }}
+            </p>
         </div>
 
         <StatusAlert v-if="error" type="error" :message="error" />

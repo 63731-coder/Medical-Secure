@@ -468,18 +468,24 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
+        queryset = MedicalFile.objects.none()
         
         # Patient sees their own files
         if hasattr(user, 'patient_profile'):
-            return MedicalFile.objects.filter(patient=user.patient_profile)
+            queryset = MedicalFile.objects.filter(patient=user.patient_profile)
         
         # Doctor sees files of appointed patients
         elif hasattr(user, 'doctor_profile'):
-            return MedicalFile.objects.filter(
+            queryset = MedicalFile.objects.filter(
                 patient__appointed_doctors=user.doctor_profile
             )
         
-        return MedicalFile.objects.none()
+        # Filter by patient_id if provided (for doctors viewing specific patient)
+        patient_id = self.request.query_params.get('patient_id')
+        if patient_id:
+            queryset = queryset.filter(patient_id=patient_id)
+        
+        return queryset
     
     def perform_create(self, serializer):
         """
