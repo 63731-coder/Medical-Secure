@@ -89,7 +89,7 @@ const router = createRouter({
 
 // commentaire à enlever si on veut activer ne pas pouvoir naviger sans etre connecte
 
-/*
+
 // Simple Navigation Guard
 router.beforeEach((to, from, next) => {
     const publicPages = ['/login', '/register', '/about'];
@@ -101,6 +101,6 @@ router.beforeEach((to, from, next) => {
     }
     next();
 });
-*/
+
 
 export default router
