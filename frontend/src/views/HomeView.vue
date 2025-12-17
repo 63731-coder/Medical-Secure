@@ -135,17 +135,5 @@ onMounted(async () => {
       </div>
 
     </div>
-
-    <div class="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6 flex items-start">
-        <svg class="w-6 h-6 text-blue-800 mr-4 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-        <div>
-            <h4 class="text-lg font-semibold text-blue-900 mb-1">How it works?</h4>
-            <ul class="list-disc list-inside text-blue-800 space-y-1 text-sm">
-                <li>Your data is encrypted using <strong>AES-256</strong> directly in your browser.</li>
-                <li>The server (Django) never sees your health data in plain text.</li>
-                <li>Only you possess the decryption key (derived from your password).</li>
-            </ul>
-        </div>
-    </div>
   </div>
 </template>
