@@ -2,7 +2,9 @@
 import { ref, onMounted, computed } from 'vue';
 import api from '../services/api';
 import StatusAlert from '../components/StatusAlert.vue';
+import { useNotifications } from '../composables/useNotifications';
 
+const { success: notifySuccess, error: notifyError, warning: notifyWarning } = useNotifications();
 const fileActionRequests = ref([]);
 const loading = ref(true);
 const error = ref('');
@@ -39,12 +41,16 @@ const fetchFileActionRequests = async () => {
 const approveRequest = async (request) => {
     try {
         await api.approveFileAction(request.id);
-        success.value = `${getActionText(request.action_type)} request from Dr. ${request.doctor.user.last_name} has been approved.`;
+        const message = `${getActionText(request.action_type)} request from Dr. ${request.doctor.user.last_name} has been approved.`;
+        success.value = message;
+        notifySuccess(message);
         error.value = '';
         await fetchFileActionRequests();
     } catch (e) {
         console.error("Failed to approve request:", e);
-        error.value = e.response?.data?.error || "Failed to approve request.";
+        const errorMsg = e.response?.data?.error || "Failed to approve request.";
+        error.value = errorMsg;
+        notifyError(errorMsg);
     }
 };
 

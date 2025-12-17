@@ -113,8 +113,10 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api';
 import StatusAlert from '@/components/StatusAlert.vue';
+import { useNotifications } from '@/composables/useNotifications';
 
 const router = useRouter();
+const { success, error: notifyError } = useNotifications();
 
 const loading = ref(true);
 const allPatients = ref([]);
@@ -163,6 +165,7 @@ const filteredPatients = () => {
 const requestAddPatient = async (patient) => {
     try {
         await api.createRequest({ patient_id: patient.id });
+        success(`Access request sent to ${patient.user.first_name} ${patient.user.last_name}`);
         showAlert('success', `Access request sent to ${patient.user.first_name} ${patient.user.last_name}`);
         
         // Add to pending requests to remove from available list
@@ -172,9 +175,11 @@ const requestAddPatient = async (patient) => {
         setTimeout(() => {
             router.push('/my-patients');
         }, 1500);
-    } catch (error) {
-        console.error('Error creating request:', error);
-        showAlert('error', error.response?.data?.error || 'Failed to send access request');
+    } catch (err) {
+        console.error('Error creating request:', err);
+        const errorMsg = err.response?.data?.error || 'Failed to send access request';
+        notifyError(errorMsg);
+        showAlert('error', errorMsg);
     }
 };
 

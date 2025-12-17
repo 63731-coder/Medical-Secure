@@ -2,7 +2,9 @@
 import { ref, onMounted } from 'vue';
 import api from '../services/api';
 import StatusAlert from '../components/StatusAlert.vue';
+import { useNotifications } from '../composables/useNotifications';
 
+const { success: notifySuccess, error: notifyError } = useNotifications();
 const requests = ref([]);
 const loading = ref(true);
 const error = ref('');
@@ -39,12 +41,16 @@ const fetchRequests = async () => {
 const approveRequest = async (request) => {
     try {
         await api.approveRequest(request.id);
-        success.value = `Dr. ${request.doctor.user.last_name} has been added to your doctors list.`;
+        const message = `Dr. ${request.doctor.user.last_name} has been added to your doctors list.`;
+        success.value = message;
+        notifySuccess(message);
         error.value = '';
         await fetchRequests();
     } catch (e) {
         console.error("Failed to approve request:", e);
-        error.value = e.response?.data?.error || "Failed to approve request.";
+        const errorMsg = e.response?.data?.error || "Failed to approve request.";
+        error.value = errorMsg;
+        notifyError(errorMsg);
     }
 };
 
@@ -86,12 +92,21 @@ const rejectRequest = async (request) => {
 
         <div v-else class="space-y-4">
             <div v-for="request in requests" :key="request.id" 
-                class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                :class="[
+                    'rounded-lg shadow-md border p-6',
+                    request.action_type === 'remove' ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
+                ]">
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex-1">
-                        <h3 class="font-bold text-lg text-gray-900">
-                            Dr. {{ request.doctor.user.first_name }} {{ request.doctor.user.last_name }}
-                        </h3>
+                        <div class="flex items-center gap-2 mb-2">
+                            <h3 class="font-bold text-lg text-gray-900">
+                                Dr. {{ request.doctor.user.first_name }} {{ request.doctor.user.last_name }}
+                            </h3>
+                            <span v-if="request.action_type === 'remove'" 
+                                class="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+                                REMOVAL REQUEST
+                            </span>
+                        </div>
                         <p class="text-sm text-gray-600">{{ request.doctor.organisation }}</p>
                         <p class="text-xs text-gray-500 mt-2">
                             Request sent {{ new Date(request.created_at).toLocaleDateString() }}
@@ -102,10 +117,23 @@ const rejectRequest = async (request) => {
                     </span>
                 </div>
 
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                    <p class="text-sm text-blue-900">
-                        <strong>Dr. {{ request.doctor.user.last_name }}</strong> is requesting access to your medical records.
-                        If you approve, they will be able to view and upload medical files to your account.
+                <div :class="[
+                    'border rounded-lg p-4 mb-4',
+                    request.action_type === 'remove' ? 'bg-red-100 border-red-300' : 'bg-blue-50 border-blue-200'
+                ]">
+                    <p :class="[
+                        'text-sm',
+                        request.action_type === 'remove' ? 'text-red-900' : 'text-blue-900'
+                    ]">
+                        <strong>Dr. {{ request.doctor.user.last_name }}</strong> 
+                        <span v-if="request.action_type === 'add'">
+                            is requesting access to your medical records.
+                            If you approve, they will be able to view and upload medical files to your account.
+                        </span>
+                        <span v-else>
+                            is requesting to be removed from your doctors list.
+                            If you approve, they will no longer have access to your medical records.
+                        </span>
                     </p>
                 </div>
 

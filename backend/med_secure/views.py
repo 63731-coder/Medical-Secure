@@ -290,7 +290,7 @@ class DoctorPatientRequestViewSet(viewsets.ModelViewSet):
     def create(self, request):
         """
         Create a new doctor-patient request
-        Doctor initiates: {"patient_id": 1}
+        Doctor initiates: {"patient_id": 1, "action_type": "add" or "remove"}
         Patient initiates: {"doctor_id": 1}
         """
         user = request.user
@@ -298,35 +298,61 @@ class DoctorPatientRequestViewSet(viewsets.ModelViewSet):
         if hasattr(user, 'doctor_profile'):
             # Doctor initiating request
             patient_id = request.data.get('patient_id')
+            action_type = request.data.get('action_type', 'add')
+            
             if not patient_id:
                 return Response({'error': 'patient_id is required'}, 
+                              status=status.HTTP_400_BAD_REQUEST)
+            
+            if action_type not in ['add', 'remove']:
+                return Response({'error': 'action_type must be "add" or "remove"'}, 
                               status=status.HTTP_400_BAD_REQUEST)
             
             try:
                 patient = Patient.objects.get(id=patient_id)
                 doctor = user.doctor_profile
                 
-                # Check if relationship already exists
-                if patient.appointed_doctors.filter(id=doctor.id).exists():
-                    return Response({'error': 'Already appointed to this patient'}, 
-                                  status=status.HTTP_400_BAD_REQUEST)
-                
-                # Check if request already exists
-                existing = DoctorPatientRequest.objects.filter(
-                    doctor=doctor,
-                    patient=patient,
-                    status='pending'
-                ).first()
-                
-                if existing:
-                    return Response({'error': 'Request already pending'}, 
-                                  status=status.HTTP_400_BAD_REQUEST)
+                if action_type == 'add':
+                    # Check if relationship already exists
+                    if patient.appointed_doctors.filter(id=doctor.id).exists():
+                        return Response({'error': 'Already appointed to this patient'}, 
+                                      status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Check if request already exists
+                    existing = DoctorPatientRequest.objects.filter(
+                        doctor=doctor,
+                        patient=patient,
+                        action_type='add',
+                        status='pending'
+                    ).first()
+                    
+                    if existing:
+                        return Response({'error': 'Request already pending'}, 
+                                      status=status.HTTP_400_BAD_REQUEST)
+                else:  # remove
+                    # Check if relationship exists
+                    if not patient.appointed_doctors.filter(id=doctor.id).exists():
+                        return Response({'error': 'Not appointed to this patient'}, 
+                                      status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Check if remove request already exists
+                    existing = DoctorPatientRequest.objects.filter(
+                        doctor=doctor,
+                        patient=patient,
+                        action_type='remove',
+                        status='pending'
+                    ).first()
+                    
+                    if existing:
+                        return Response({'error': 'Remove request already pending'}, 
+                                      status=status.HTTP_400_BAD_REQUEST)
                 
                 # Create request
                 req = DoctorPatientRequest.objects.create(
                     doctor=doctor,
                     patient=patient,
                     requested_by=user,
+                    action_type=action_type,
                     status='pending'
                 )
                 
@@ -395,13 +421,18 @@ class DoctorPatientRequestViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Request is not pending'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
-        # Approve and add doctor to patient's list
+        # Approve request
         req.status = 'approved'
         req.save()
-        req.patient.appointed_doctors.add(req.doctor)
+        
+        # Execute action based on action_type
+        if req.action_type == 'add':
+            req.patient.appointed_doctors.add(req.doctor)
+        elif req.action_type == 'remove':
+            req.patient.appointed_doctors.remove(req.doctor)
         
         return Response({
-            'message': 'Request approved',
+            'message': f'Request {req.action_type} approved',
             'request': DoctorPatientRequestSerializer(req).data
         })
     

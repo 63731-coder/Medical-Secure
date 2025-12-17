@@ -34,6 +34,11 @@ class DoctorPatientRequest(models.Model):
     Can be initiated by either the patient or the doctor.
     Requires approval from the patient.
     """
+    ACTION_CHOICES = [
+        ('add', 'Add'),
+        ('remove', 'Remove'),
+    ]
+    
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('approved', 'Approved'),
@@ -44,16 +49,17 @@ class DoctorPatientRequest(models.Model):
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='doctor_requests')
     requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='initiated_requests',
                                     help_text="User who initiated this request")
+    action_type = models.CharField(max_length=10, choices=ACTION_CHOICES, default='add',
+                                   help_text="Type of action: add or remove relationship")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['doctor', 'patient']
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.doctor} - {self.patient} ({self.status})"
+        return f"{self.doctor} - {self.patient} ({self.action_type}/{self.status})"
 
 
 class MedicalFile(models.Model):

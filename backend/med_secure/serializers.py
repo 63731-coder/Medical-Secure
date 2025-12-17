@@ -91,7 +91,7 @@ class DoctorPatientRequestSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = DoctorPatientRequest
-        fields = ['id', 'doctor', 'patient', 'requested_by_user', 'status', 'created_at', 'updated_at']
+        fields = ['id', 'doctor', 'patient', 'requested_by_user', 'action_type', 'status', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
 
 
