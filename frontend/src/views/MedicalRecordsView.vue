@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
-import { decryptData } from '../utils/crypto';
+import { decryptData, encryptData } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import api from '../services/api';
@@ -19,6 +19,12 @@ const patientId = ref(route.query.patient_id);
 const userType = ref(null);
 const showDeleteModal = ref(false);
 const recordToDelete = ref(null);
+const showEditModal = ref(false);
+const recordToEdit = ref(null);
+const editFile = ref(null);
+const editName = ref('');
+const editDescription = ref('');
+const editLoading = ref(false);
 
 // Fetch patient info if patient_id is provided
 const fetchPatient = async () => {
@@ -147,6 +153,94 @@ const getDeleteModalMessage = () => {
         : `Are you sure you want to delete "${recordToDelete.value.name}"? This action cannot be undone.`;
 };
 
+const openEditModal = (record) => {
+    recordToEdit.value = record;
+    editName.value = record.name.replace('.enc', '');
+    editDescription.value = record.description || '';
+    editFile.value = null;
+    showEditModal.value = true;
+};
+
+const handleEditFileChange = (event) => {
+    editFile.value = event.target.files[0];
+};
+
+const saveEdit = async () => {
+    if (!editName.value) {
+        notifyError('File name is required');
+        return;
+    }
+    
+    editLoading.value = true;
+    
+    try {
+        const formData = new FormData();
+        formData.append('name', editName.value);
+        formData.append('description', editDescription.value);
+        
+        // If new file is provided, encrypt and add it
+        if (editFile.value) {
+            const reader = new FileReader();
+            reader.readAsArrayBuffer(editFile.value);
+            
+            await new Promise((resolve, reject) => {
+                reader.onload = async (e) => {
+                    try {
+                        const arrayBuffer = e.target.result;
+                        const uint8Array = new Uint8Array(arrayBuffer);
+                        let binary = '';
+                        uint8Array.forEach(byte => binary += String.fromCharCode(byte));
+                        const base64Content = btoa(binary);
+                        
+                        const encryptedContent = encryptData(base64Content);
+                        if (!encryptedContent) {
+                            throw new Error('Encryption failed');
+                        }
+                        
+                        const encryptedBlob = new Blob([encryptedContent], { type: 'application/octet-stream' });
+                        formData.append('file', encryptedBlob, editFile.value.name + '.enc');
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+                reader.onerror = reject;
+            });
+        }
+        
+        const token = localStorage.getItem('accessToken');
+        await axios.put(
+            `http://127.0.0.1:8000/api/files/${recordToEdit.value.id}/edit/`,
+            formData,
+            {
+                headers: {
+                    'Authorization': `Token ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            }
+        );
+        
+        notifySuccess('Medical record updated successfully');
+        showEditModal.value = false;
+        recordToEdit.value = null;
+        editFile.value = null;
+        await fetchRecords();
+        
+    } catch (err) {
+        console.error('Edit error:', err);
+        const errorMsg = err.response?.data?.error || 'Failed to update record';
+        notifyError(errorMsg);
+    } finally {
+        editLoading.value = false;
+    }
+};
+
+const cancelEdit = () => {
+    showEditModal.value = false;
+    recordToEdit.value = null;
+    editFile.value = null;
+};
+
 onMounted(async () => {
     // Get user profile to determine user type
     try {
@@ -221,6 +315,12 @@ onMounted(async () => {
                                 </svg>
                                 Download
                             </button>
+                            <button v-if="userType === 'patient'" @click="openEditModal(file)" class="text-green-600 hover:text-green-900 font-medium inline-flex items-center gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit
+                            </button>
                             <button @click="openDeleteModal(file)" class="text-red-600 hover:text-red-900 font-medium inline-flex items-center gap-1">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -248,5 +348,62 @@ onMounted(async () => {
             @confirm="confirmDelete"
             @cancel="cancelDelete"
         />
+
+        <!-- Edit File Modal -->
+        <Transition name="modal">
+            <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @click.self="cancelEdit">
+                <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-900">Edit Medical Record</h3>
+                    </div>
+                    
+                    <div class="px-6 py-4 space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Document Title</label>
+                            <input v-model="editName" type="text" required
+                                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="e.g., Blood Test Results">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
+                            <textarea v-model="editDescription" rows="3"
+                                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="Add description..."></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Replace File (Optional)</label>
+                            <input type="file" @change="handleEditFileChange"
+                                class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
+                            <p class="text-xs text-gray-500 mt-2">Leave empty to keep current file, or upload a new one to replace it.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                        <button @click="cancelEdit" :disabled="editLoading"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50">
+                            Cancel
+                        </button>
+                        <button @click="saveEdit" :disabled="editLoading"
+                            class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50">
+                            {{ editLoading ? 'Saving...' : 'Save Changes' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
     </div>
 </template>
+
+<style scoped>
+.modal-enter-active,
+.modal-leave-active {
+    transition: opacity 0.2s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+    opacity: 0;
+}
+</style>
