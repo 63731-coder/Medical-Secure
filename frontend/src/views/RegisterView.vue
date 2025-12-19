@@ -1,151 +1,182 @@
 <script>
-import axios from "axios";
+import axios from 'axios'
 
 export default {
-    name: "RegisterPage",
-    data() {
-        return {
-            username: "",
-            email: "",
-            password: "",
-            confirmPassword: "",
-            errorMessage: "",
-            successMessage: ""
-        };
-    },
-    methods: {
-        async handleRegister() {
-            this.errorMessage = "";
-            this.successMessage = "";
-
-            // 1. Basic Validation
-            if (this.password !== this.confirmPassword) {
-                this.errorMessage = "Passwords do not match.";
-                return;
-            }
-
-            if (this.password.length < 8) {
-                this.errorMessage = "Password must be at least 8 characters long.";
-                return;
-            }
-
-            try {
-                // 2. Call Django API (Ensure this endpoint exists in your backend!)
-                // Example URL: http://127.0.0.1:8000/api/register/
-                await axios.post("http://127.0.0.1:8000/api/register/", {
-                    username: this.username,
-                    email: this.email,
-                    password: this.password
-                });
-
-                this.successMessage = "Account created successfully! Redirecting to login...";
-                
-                // 3. Redirect to Login after 2 seconds
-                setTimeout(() => {
-                    this.$router.push("/login");
-                }, 2000);
-
-            } catch (error) {
-                console.error("Registration error", error);
-                // Display specific error from Django if available
-                if (error.response && error.response.data) {
-                    this.errorMessage = JSON.stringify(error.response.data);
-                } else {
-                    this.errorMessage = "Registration failed. Please try again.";
-                }
-            }
-        }
+  name: "RegisterPage",
+  data() {
+    return {
+      username: '',
+      email: '',
+      firstName: '',
+      lastName: '',
+      userType: 'patient',
+      dateOfBirth: '',
+      organisation: '',
+      errorMessage: '',
+      loading: false
     }
-};
+  },
+  methods: {
+    async handleRegister() {
+      this.errorMessage = ''
+      this.loading = true
+
+      try {
+        if (!this.username || !this.email || !this.firstName || !this.lastName) {
+          this.errorMessage = 'Please fill all required fields'
+          this.loading = false
+          return
+        }
+
+        if (this.userType === 'patient' && !this.dateOfBirth) {
+          this.errorMessage = 'Date of birth is required for patients'
+          this.loading = false
+          return
+        }
+
+        if (this.userType === 'doctor' && !this.organisation) {
+          this.errorMessage = 'Organisation is required for doctors'
+          this.loading = false
+          return
+        }
+
+        const tempPassword = this.generateTempPassword()
+
+        const response = await axios.post('http://localhost:8000/api/auth/register/', {
+          username: this.username,
+          email: this.email,
+          password: tempPassword,
+          first_name: this.firstName,
+          last_name: this.lastName,
+          user_type: this.userType,
+          date_of_birth: this.userType === 'patient' ? this.dateOfBirth : null,
+          organisation: this.userType === 'doctor' ? this.organisation : null
+        })
+
+        if (response.data) {
+          // Afficher le code d'activation temporaire
+          const fullActivationCode = tempPassword
+          alert(`✅ Account created!\n\n🔑 ACTIVATION CODE:\n${fullActivationCode}\n\n⚠️ IMPORTANT:\n1. On the next page, enter this code in the PASSWORD field\n2. You will then setup your Passkey\n3. After that, you'll login with Passkey only!\n\n(This code is used only ONCE)`)
+          
+          // Copier dans le clipboard pour faciliter
+          navigator.clipboard.writeText(fullActivationCode).catch(() => {})
+          
+          // Stocker pour référence
+          sessionStorage.setItem('activation_username', this.username)
+          sessionStorage.setItem('activation_code', tempPassword)
+          
+          const keycloakAuthUrl = `http://localhost:8080/realms/medical-realm/protocol/openid-connect/auth`
+          const params = new URLSearchParams({
+            client_id: 'medical-app',
+            redirect_uri: 'http://localhost:5173/callback',
+            response_type: 'code',
+            scope: 'openid profile email',
+            login_hint: this.username,
+            // Force immediate authentication (no SSO)
+            prompt: 'login'
+          })
+          
+          window.location.href = `${keycloakAuthUrl}?${params.toString()}`
+        }
+      } catch (error) {
+        console.error('Registration error:', error)
+        if (error.response?.data?.error) {
+          this.errorMessage = error.response.data.error
+        } else {
+          this.errorMessage = 'Registration failed. Please try again.'
+        }
+        this.loading = false
+      }
+    },
+
+    generateTempPassword() {
+      // Génère un code simple de 6 caractères alphanumériques
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // Sans caractères ambigus
+      let code = ''
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length))
+      }
+      // Retourne un password qui contient le code + suffixe pour respecter la policy
+      return code + '!Aa1'
+    }
+  }
+}
 </script>
 
 <template>
-    <div class="max-w-md mx-auto mt-10 bg-white rounded-xl shadow-md overflow-hidden md:max-w-lg border border-gray-100">
-        <div class="bg-green-600 p-4 text-center">
-            <h2 class="text-xl font-bold text-white">Create Account</h2>
-            <p class="text-green-100 text-xs">Join SecureMed Portal</p>
-        </div>
-        
-        <form @submit.prevent="handleRegister" class="p-8 space-y-4">
-            
-            <div>
-                <label class="block text-gray-700 text-sm font-bold mb-2" for="username">
-                    Username
-                </label>
-                <input 
-                    id="username"
-                    type="text" 
-                    v-model="username" 
-                    required 
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
-                    placeholder="Choose a username"
-                />
-            </div>
-
-            <div>
-                <label class="block text-gray-700 text-sm font-bold mb-2" for="email">
-                    Email Address
-                </label>
-                <input 
-                    id="email"
-                    type="email" 
-                    v-model="email" 
-                    required 
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
-                    placeholder="name@example.com"
-                />
-            </div>
-
-            <div>
-                <label class="block text-gray-700 text-sm font-bold mb-2" for="password">
-                    Password
-                </label>
-                <input 
-                    id="password"
-                    type="password" 
-                    v-model="password" 
-                    required 
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
-                    placeholder="Create a strong password"
-                />
-            </div>
-
-            <div>
-                <label class="block text-gray-700 text-sm font-bold mb-2" for="confirmPassword">
-                    Confirm Password
-                </label>
-                <input 
-                    id="confirmPassword"
-                    type="password" 
-                    v-model="confirmPassword" 
-                    required 
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
-                    placeholder="Repeat password"
-                />
-            </div>
-
-            <div v-if="errorMessage" class="bg-red-50 text-red-700 px-4 py-3 rounded text-sm">
-                {{ errorMessage }}
-            </div>
-            <div v-if="successMessage" class="bg-green-50 text-green-700 px-4 py-3 rounded text-sm">
-                {{ successMessage }}
-            </div>
-
-            <button 
-                type="submit"
-                class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 transform hover:scale-[1.02]"
-            >
-                Register
-            </button>
-
-            <div class="text-center mt-4">
-                <p class="text-sm text-gray-600">
-                    Already have an account? 
-                    <RouterLink to="/login" class="text-green-600 hover:underline font-bold">
-                        Sign In
-                    </RouterLink>
-                </p>
-            </div>
-        </form>
+  <div class="max-w-md mx-auto mt-10 bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
+    <div class="bg-blue-500 p-6 text-center">
+      <h2 class="text-2xl font-bold text-white">Register</h2>
+      <p class="text-blue-100 text-sm mt-1">* Required fields</p>
     </div>
+    
+    <form @submit.prevent="handleRegister" class="p-8 space-y-4">
+      <div v-if="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        {{ errorMessage }}
+      </div>
+
+      <div>
+        <label class="block text-white text-sm font-bold mb-2">User Type *</label>
+        <select v-model="userType" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="patient">Patient</option>
+          <option value="doctor">Doctor</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-white text-sm font-bold mb-2">Username *</label>
+        <input type="text" v-model="username" required placeholder="Enter username" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+
+      <div>
+        <label class="block text-white text-sm font-bold mb-2">Email *</label>
+        <input type="email" v-model="email" required placeholder="your.email@example.com" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+
+      <div>
+        <label class="block text-white text-sm font-bold mb-2">First name *</label>
+        <input type="text" v-model="firstName" required placeholder="John" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+
+      <div>
+        <label class="block text-white text-sm font-bold mb-2">Last name *</label>
+        <input type="text" v-model="lastName" required placeholder="Doe" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+
+      <div v-if="userType === 'patient'">
+        <label class="block text-white text-sm font-bold mb-2">Date of Birth *</label>
+        <input type="date" v-model="dateOfBirth" required class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+
+      <div v-if="userType === 'doctor'">
+        <label class="block text-white text-sm font-bold mb-2">Organisation *</label>
+        <input type="text" v-model="organisation" required placeholder="Hospital name" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+
+      <div class="bg-white p-4 rounded flex items-center justify-center">
+        <div class="flex items-center">
+          <input type="checkbox" id="captcha" required class="mr-2" />
+          <label for="captcha" class="text-gray-700">I'm not a robot</label>
+        </div>
+      </div>
+
+      <button type="submit" :disabled="loading" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 disabled:bg-gray-500">
+        <span v-if="loading">Creating account...</span>
+        <span v-else">Register</span>
+      </button>
+
+      <div class="text-center mt-4">
+        <p class="text-sm text-gray-400">
+          Already have an account? 
+          <RouterLink to="/login" class="text-blue-400 hover:underline font-bold">Sign In</RouterLink>
+        </p>
+      </div>
+    </form>
+  </div>
 </template>
+
+<style scoped>
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+</style>

@@ -169,3 +169,4 @@ KEYCLOAK_SERVER_URL = 'http://localhost:8080'
 KEYCLOAK_REALM = 'medical-realm'
 KEYCLOAK_CLIENT_ID = 'medical-app'
 KEYCLOAK_CLIENT_SECRET = 'o6HkeCbEUl5UpPxkq1SC7vvTeENRCUPq'
+KEYCLOAK_REDIRECT_URI = "http://localhost:5173/callback"

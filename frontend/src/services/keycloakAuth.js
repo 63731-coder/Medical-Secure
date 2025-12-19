@@ -1,4 +1,4 @@
-// Keycloak OAuth2/OIDC Authentication Service
+// Keycloak OAuth2 / OIDC Authentication Service
 import axios from 'axios'
 
 const API_URL = 'http://localhost:8000/api'
@@ -32,7 +32,6 @@ class KeycloakAuth {
     const state = this.generateRandomString(32)
     sessionStorage.setItem('oauth_state', state)
     
-    // Build authorization URL
     const params = new URLSearchParams({
       client_id: config.client_id,
       redirect_uri: config.redirect_uri,
@@ -41,7 +40,6 @@ class KeycloakAuth {
       state: state,
     })
     
-    // Redirect to Keycloak
     window.location.href = `${config.auth_url}?${params.toString()}`
   }
 
@@ -59,13 +57,12 @@ class KeycloakAuth {
     
     const config = await this.getConfig()
     
-    // Exchange code for tokens
     const response = await axios.post(`${API_URL}/auth/callback/`, {
       code: code,
       redirect_uri: config.redirect_uri,
     })
-    
-    // Save tokens
+
+    // Save tokens in memory and localStorage
     this.accessToken = response.data.access_token
     this.refreshToken = response.data.refresh_token
     
@@ -90,14 +87,14 @@ class KeycloakAuth {
       
       this.accessToken = response.data.access_token
       this.refreshToken = response.data.refresh_token
-      
+
       localStorage.setItem('access_token', this.accessToken)
       localStorage.setItem('refresh_token', this.refreshToken)
       
       return this.accessToken
     } catch (error) {
-      // Refresh failed, user needs to login again
-      this.logout()
+      console.warn('Refresh token failed, logging out...')
+      await this.logout()
       throw error
     }
   }
@@ -108,17 +105,16 @@ class KeycloakAuth {
   async logout() {
     if (this.refreshToken) {
       try {
-        await axios.post(
-          `${API_URL}/auth/logout/`,
-          { refresh_token: this.refreshToken },
-          { headers: { Authorization: `Bearer ${this.accessToken}` } }
-        )
+        await axios.post(`${API_URL}/auth/logout/`, {
+          refresh_token: this.refreshToken
+        }, {
+          headers: { Authorization: `Bearer ${this.accessToken}` }
+        })
       } catch (error) {
         console.error('Logout error:', error)
       }
     }
-    
-    // Clear local storage
+
     this.accessToken = null
     this.refreshToken = null
     localStorage.removeItem('access_token')
@@ -148,7 +144,6 @@ class KeycloakAuth {
     try {
       const payload = this.accessToken.split('.')[1]
       const decoded = JSON.parse(atob(payload))
-      
       return {
         username: decoded.preferred_username,
         email: decoded.email,
@@ -157,12 +152,13 @@ class KeycloakAuth {
         roles: decoded.realm_access?.roles || [],
       }
     } catch (error) {
+      console.error('Failed to decode JWT', error)
       return null
     }
   }
 
   /**
-   * Helper: Generate random string for state parameter
+   * Generate random string for state parameter
    */
   generateRandomString(length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
