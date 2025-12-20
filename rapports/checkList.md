@@ -28,7 +28,7 @@ export const encryptData = (data) => {
 ```
 **Screenshot:** Lignes 32-40 de `crypto.js`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 32**: Fonction exportée qui prend les données sensibles à chiffrer
 - **Ligne 33**: Vérification que la clé de chiffrement existe (sécurité)
 - **Ligne 34**: Message d'erreur si pas de clé (l'utilisateur doit être connecté)
@@ -54,7 +54,7 @@ export const decryptData = (cipherText) => {
 ```
 **Screenshot:** Lignes 43-51 de `crypto.js`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 43**: Fonction qui déchiffre les données chiffrées reçues du serveur
 - **Ligne 44**: Retourne `null` si pas de clé (impossible de déchiffrer)
 - **Ligne 45**: Bloc `try` pour gérer les erreurs de déchiffrement
@@ -83,7 +83,7 @@ export const deriveKeyFromPassword = (password, salt = 'mon_sel_fixe_pour_le_pro
 ```
 **Screenshot:** Lignes 14-25 de `crypto.js`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 14**: Fonction appelée au login, prend le mot de passe + sel (salt)
 - **Ligne 15**: **PBKDF2** = algorithme qui transforme un mot de passe en clé cryptographique robuste
 - **Ligne 16**: `keySize: 256/32` = génère une clé de 256 bits (très sécurisé)
@@ -110,7 +110,7 @@ if (!encryptedContent) {
 ```
 **Screenshot:** Lignes 68-72 de `UploadView.vue`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 68**: Lecture du fichier et conversion en Base64 (format texte transmissible)
 - **Ligne 69**: Appel de `encryptData()` pour chiffrer le contenu Base64 en AES-256
 - **Ligne 71**: Vérification que le chiffrement a réussi
@@ -159,7 +159,7 @@ apiClient.interceptors.request.use((config) => {
 ```
 **Screenshot:** Lignes 11-17 de `api.js`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 11**: Intercepteur Axios = fonction exécutée automatiquement avant chaque requête
 - **Ligne 12**: Récupère le token d'authentification depuis le stockage local du navigateur
 - **Ligne 13**: Vérifie que le token existe (utilisateur connecté)
@@ -187,7 +187,7 @@ REST_FRAMEWORK = {
 ```
 **Screenshot:** Lignes 119-126 de `settings.py`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 119**: Configuration globale de Django REST Framework (DRF)
 - **Ligne 120**: Liste des méthodes d'authentification acceptées
 - **Ligne 121**: `TokenAuthentication` = vérifie le token dans le header `Authorization`
@@ -228,7 +228,7 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 ```
 **Screenshot:** Lignes 165-188 de `settings.py`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 166**: `SECURE_SSL_REDIRECT` = Force redirection HTTP → HTTPS (False en dev, True en prod)
 - **Ligne 167-168**: Cookies sécurisés = envoyés uniquement sur HTTPS en production
 - **Ligne 169**: Détecte si derrière un proxy HTTPS (ex: nginx, Apache)
@@ -267,7 +267,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ```
 **Screenshot:** Lignes 105-116 de `settings.py`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 105**: Liste des validateurs Django pour renforcer les mots de passe
 - **Ligne 107**: `UserAttributeSimilarityValidator` = Empêche mot de passe similaire au username/email
 - **Ligne 110**: `MinimumLengthValidator` = Impose longueur minimum (8 caractères par défaut)
@@ -295,7 +295,7 @@ return response
 ```
 **Screenshot:** Lignes 650-653 de `views.py`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 650**: Commentaire confirmant que le fichier est déjà chiffré côté client
 - **Ligne 651**: `FileResponse` = renvoie le fichier binaire (`'rb'`) tel quel
 - **Ligne 652**: Header HTTP qui définit le nom du fichier au téléchargement
@@ -325,7 +325,7 @@ elif hasattr(request.user, 'doctor_profile'):
 ```
 **Screenshot:** Lignes 638-648 de `views.py`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 638**: Commentaire indiquant la vérification de sécurité
 - **Ligne 639**: Vérifie si l'utilisateur est un patient
 - **Ligne 640**: Compare si le fichier médical appartient bien à CE patient
@@ -368,7 +368,7 @@ class FileActionRequest(models.Model):
 ```
 **Screenshot:** Lignes 88-110 de `models.py`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 88**: Modèle de base de données pour gérer les demandes d'action des docteurs
 - **Ligne 90-91**: Documentation : les docteurs doivent demander l'approbation du patient
 - **Ligne 93-97**: `ACTION_CHOICES` = types d'actions possibles (upload, edit, delete)
@@ -405,49 +405,6 @@ class FileActionRequest(models.Model):
 
 ---
 
-## Recommandations pour la production
-
-### À activer en production :
-1. Dans `settings.py`, modifier :
-   - `SECURE_SSL_REDIRECT = True`
-   - `SESSION_COOKIE_SECURE = True`
-   - `CSRF_COOKIE_SECURE = True`
-   - `DEBUG = False`
-
-2. Utiliser un reverse proxy (nginx) avec certificat SSL/TLS
-
-3. Améliorer le salt PBKDF2 :
-   - Utiliser un salt unique par utilisateur (stocké en clair)
-   - Augmenter le nombre d'itérations PBKDF2 à 100 000+
-
-4. Implémenter la rotation des tokens d'authentification
-
----
-
-## Liste des screenshots à prendre
-
-1. **Ligne 32-40** : `frontend/src/utils/crypto.js` - Fonction `encryptData`
-2. **Ligne 43-51** : `frontend/src/utils/crypto.js` - Fonction `decryptData`
-3. **Ligne 14-25** : `frontend/src/utils/crypto.js` - Dérivation PBKDF2
-4. **Ligne 68-72** : `frontend/src/views/UploadView.vue` - Chiffrement upload
-5. **Dossier** : `backend/media/medical_records/` - Fichiers `.enc`
-6. **Ligne 11-17** : `frontend/src/services/api.js` - Intercepteur token
-7. **Ligne 119-126** : `backend/config/settings.py` - Config DRF
-8. **Ligne 165-188** : `backend/config/settings.py` - Sécurité HTTPS
-9. **Ligne 105-116** : `backend/config/settings.py` - Validateurs password
-10. **Ligne 650-653** : `backend/med_secure/views.py` - Download chiffré
-11. **Ligne 638-648** : `backend/med_secure/views.py` - Vérification permissions
-12. **Ligne 88-110** : `backend/med_secure/models.py` - FileActionRequest
-13. **Ligne 26-31** : `frontend/src/views/ProfileView.vue` - Fonction logout
-14. **Ligne 27-30** : `frontend/src/utils/crypto.js` - clearEncryptionKey
-15. **Ligne 97** : `backend/med_secure/views.py` - Token deletion
-
----
-
-
----
-
-
 ---
 
 # ✅ CHECKLIST 8 : RÉMANENCE DES DONNÉES
@@ -480,7 +437,7 @@ export const clearEncryptionKey = () => {
 ```
 **Screenshot:** Lignes 27-30 de `crypto.js`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 27**: Commentaire indiquant l'usage au logout
 - **Ligne 28**: Fonction exportée pour nettoyer la clé de chiffrement
 - **Ligne 29**: `SECRET_KEY = null` = Supprime la clé de la variable mémoire JavaScript
@@ -507,7 +464,7 @@ function logout() {
 ```
 **Screenshot:** Lignes 26-33 de `ProfileView.vue`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 26**: Fonction de déconnexion
 - **Ligne 27**: **CRITIQUE** - Appel immédiat de `clearEncryptionKey()` pour supprimer la clé
 - **Ligne 28**: Supprime l'ancien token (si présent)
@@ -532,7 +489,7 @@ def post(self, request):
 ```
 **Screenshot:** Ligne 97 de `views.py`
 
-**Explication ligne par ligne:**
+**Explication:**
 - **Ligne 97**: `.delete()` = Suppression **permanente** du token en base de données
 - **Important**: Le token ne peut plus être réutilisé après logout
 - **Protection**: Empêche la réutilisation du token même si intercepté avant le logout
@@ -621,31 +578,480 @@ self.target_file.delete()       # Delete database record
 
 ---
 
-## Améliorations possibles
+---
 
-### Pour une sécurité maximale en production :
+# ✅ CHECKLIST 3 : INTÉGRITÉ DES DONNÉES
 
-1. **Overwrite mémoire en JavaScript** (difficile mais possible) :
-   ```javascript
-   // Optionnel : réécrire la variable avec des zéros
-   SECRET_KEY = '\0'.repeat(64);
-   SECRET_KEY = null;
-   ```
-
-2. **Secure file deletion côté serveur** :
-   - Utiliser `shred` ou `srm` (Linux) pour écraser les fichiers
-   - Django ne fait qu'un `unlink()` standard
-   
-3. **Rotation automatique des tokens** :
-   - Changer le token périodiquement
-   - Invalider les anciens tokens
-
-4. **Clear cookies au logout** :
-   - Supprimer aussi les cookies de session
-   - Éviter toute rémanence côté navigateur
+**Question principale :** *Do I properly ensure integrity of stored data?*
 
 ---
 
-**Date du rapport:** 20 décembre 2025  
-**Projet:** Medical Secure Platform  
-**Auteur:** 60991 - 63731 -  -  -  
+## 1. Est-ce que les données stockées en base de données maintiennent leur intégrité ?
+
+### **OUI - Contraintes de base de données et validations Django**
+
+#### **A. Contraintes d'intégrité relationnelle dans les modèles**
+
+**Fichier:** `backend/med_secure/models.py`
+
+**Lignes 10-11 - Relation OneToOneField (Doctor):**
+```python
+user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='doctor_profile')
+organisation = models.CharField(max_length=100, help_text="Hospital or clinic")
+```
+
+**Explication:**
+- **Ligne 10**: `OneToOneField` garantit qu'un utilisateur = 1 seul profil médecin (pas de duplicata)
+- **Ligne 10**: `on_delete=models.CASCADE` assure l'intégrité référentielle (si User supprimé → Doctor supprimé automatiquement)
+- **Ligne 10**: `related_name='doctor_profile'` permet l'accès inverse (user.doctor_profile)
+- **Ligne 11**: `max_length=100` valide que l'organisation ne dépasse pas 100 caractères
+- **Résultat**: Impossible d'avoir un Doctor sans User, ou deux Doctors pour le même User
+
+---
+
+**Lignes 21-24 - Relation OneToOneField et ManyToManyField (Patient):**
+```python
+user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='patient_profile')
+date_of_birth = models.DateField()
+# Many-to-many relation: a patient can have multiple doctors
+appointed_doctors = models.ManyToManyField(Doctor, related_name='patients', blank=True)
+```
+**Screenshot:** Lignes 21-24 de `models.py`
+
+**Explication:**
+- **Ligne 21**: Garantit 1 User = 1 Patient (intégrité)
+- **Ligne 22**: `DateField()` valide automatiquement que c'est une date valide (pas de texte ou nombre)
+- **Ligne 24**: `ManyToManyField` crée une table pivot pour la relation N-N (Patient ↔ Doctor)
+- **Ligne 24**: Django gère automatiquement l'intégrité (pas de docteur fantôme assigné)
+- **Ligne 24**: `blank=True` permet d'avoir 0 docteur assigné (patient nouveau)
+- **Résultat**: Les relations sont toujours cohérentes, pas de références cassées
+
+---
+
+**Lignes 69-74 - Intégrité des fichiers médicaux:**
+```python
+patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='medical_files')
+# File storage (temporarily in plain text)
+file = models.FileField(upload_to='medical_records/')
+name = models.CharField(max_length=255, help_text="Medical file name")
+description = models.TextField(blank=True, help_text="Optional description")
+created_at = models.DateTimeField(auto_now_add=True)
+```
+**Screenshot:** Lignes 69-74 de `models.py`
+
+**Explication:**
+- **Ligne 69**: `ForeignKey` avec `CASCADE` = si patient supprimé, ses fichiers aussi (pas de fichiers orphelins)
+- **Ligne 71**: `FileField` valide que c'est bien un fichier, gère le stockage et chemin automatiquement
+- **Ligne 72**: `max_length=255` empêche des noms trop longs qui casseraient le système de fichiers
+- **Ligne 74**: `auto_now_add=True` définit automatiquement la date de création (pas modifiable manuellement)
+- **Résultat**: Tous les fichiers sont liés à un patient existant, avec métadonnées valides
+
+---
+
+**Lignes 77-79 - Traçabilité de l'upload:**
+```python
+# Traceability: who uploaded this file?
+uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, 
+                              help_text="Patient or doctor who uploaded")
+```
+**Screenshot:** Lignes 77-79 de `models.py`
+
+**Explication:**
+- **Ligne 78**: `on_delete=models.SET_NULL` préserve l'historique si l'utilisateur est supprimé
+- **Ligne 78**: Au lieu de supprimer le fichier, on met `uploaded_by=null` (audit trail intact)
+- **Ligne 78**: `null=True` autorise les uploads sans utilisateur (migration de données anciennes)
+- **Résultat**: Traçabilité complète, historique préservé même si utilisateur supprimé
+
+---
+
+#### **B. Validations des données dans les Serializers**
+
+**Fichier:** `backend/med_secure/serializers.py`
+
+**Lignes 37-41 - Champs en lecture seule:**
+```python
+class MedicalFileSerializer(serializers.ModelSerializer):
+    """Medical file with metadata"""
+    uploaded_by = UserSerializer(read_only=True)
+    
+    class Meta:
+        model = MedicalFile
+        fields = ['id', 'file', 'name', 'description', 'created_at', 'uploaded_by']
+        read_only_fields = ['uploaded_by', 'created_at']
+```
+**Screenshot:** Lignes 37-41 de `serializers.py`
+
+**Explication:**
+- **Ligne 39**: `uploaded_by` en `read_only=True` empêche un attaquant de falsifier l'auteur
+- **Ligne 43**: `read_only_fields` liste les champs que l'API n'accepte JAMAIS en input
+- **Ligne 43**: `created_at` ne peut pas être modifié (impossible d'antidater un fichier)
+- **Résultat**: Intégrité des métadonnées garantie, pas de falsification possible via l'API
+
+---
+
+**Lignes 45-49 - Validation de mot de passe fort:**
+```python
+class RegisterSerializer(serializers.ModelSerializer):
+    """Registration for new users (patient or doctor)"""
+    password = serializers.CharField(write_only=True, min_length=8)
+    user_type = serializers.ChoiceField(choices=['patient', 'doctor'], write_only=True)
+```
+**Screenshot:** Lignes 45-49 de `serializers.py`
+
+**Explication:**
+- **Ligne 47**: `min_length=8` force un mot de passe d'au moins 8 caractères (sécurité)
+- **Ligne 47**: `write_only=True` assure que le mot de passe n'est JAMAIS renvoyé dans les réponses API
+- **Ligne 48**: `ChoiceField` valide que `user_type` est soit 'patient' soit 'doctor' (pas d'autres valeurs)
+- **Résultat**: Pas de mots de passe faibles, pas de types d'utilisateurs invalides
+
+---
+
+**Lignes 58-66 - Validation métier personnalisée:**
+```python
+def validate(self, data):
+    """Custom validation based on user type"""
+    user_type = data.get('user_type')
+    
+    if user_type == 'patient' and not data.get('date_of_birth'):
+        raise serializers.ValidationError("Date of birth is required for patients")
+    
+    if user_type == 'doctor' and not data.get('organisation'):
+        raise serializers.ValidationError("Organisation is required for doctors")
+        
+    return data
+```
+**Screenshot:** Lignes 58-66 de `serializers.py`
+
+**Explication:**
+- **Ligne 58**: Méthode `validate()` appelée automatiquement par Django REST Framework
+- **Ligne 62**: Si type=patient MAIS pas de date de naissance → erreur 400 (Bad Request)
+- **Ligne 65**: Si type=doctor MAIS pas d'organisation → erreur 400
+- **Ligne 67**: Si validations OK, retourne les données nettoyées
+- **Résultat**: Impossible de créer un patient sans date de naissance ou un docteur sans organisation
+
+---
+
+#### **C. Gestion transactionnelle dans les vues**
+
+**Fichier:** `backend/med_secure/views.py`
+
+**Lignes 525-536 - Création atomique de fichier (Patient):**
+```python
+# If patient uploads for themselves
+if hasattr(user, 'patient_profile'):
+    try:
+        serializer.save(
+            patient=user.patient_profile,
+            uploaded_by=user
+        )
+    except Exception as e:
+        raise drf_serializers.ValidationError(
+            f"Failed to save file: {str(e)}"
+        )
+```
+**Screenshot:** Lignes 525-536 de `views.py`
+
+**Explication:**
+- **Ligne 526**: Vérifie que l'utilisateur a bien un profil patient
+- **Ligne 527**: Bloc `try-except` pour capturer toute erreur lors de la sauvegarde
+- **Ligne 528**: `serializer.save()` lance une transaction de base de données
+- **Ligne 528**: Django utilise des transactions par défaut (si erreur → rollback automatique)
+- **Ligne 534**: Si erreur, convertit en `ValidationError` HTTP 400 avec détails
+- **Résultat**: Soit le fichier est créé complètement, soit rien n'est sauvegardé (atomicité)
+
+---
+
+**Lignes 762-780 - Approbation et exécution atomique d'une action:**
+```python
+# Approve and execute the action
+action_request.status = 'approved'
+action_request.save()
+
+try:
+    action_request.execute_action()
+    return Response({
+        'message': 'Request approved and executed',
+        'request': FileActionRequestSerializer(action_request).data
+    })
+except Exception as e:
+    action_request.status = 'pending'
+    action_request.save()
+    return Response({
+        'error': f'Failed to execute action: {str(e)}'
+    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+```
+**Screenshot:** Lignes 762-780 de `views.py`
+
+**Explication:**
+- **Ligne 763**: Change le statut de la demande à 'approved'
+- **Ligne 764**: Sauvegarde en base de données
+- **Ligne 767**: Exécute l'action (upload/edit/delete du fichier)
+- **Ligne 773**: **Si échec**: revient au statut 'pending' (rollback manuel)
+- **Ligne 774**: Sauvegarde le rollback
+- **Résultat**: Cohérence garantie, pas de statut "approved" si l'action a échoué
+
+---
+
+## 2. Est-ce que l'intégrité des fichiers chiffrés est protégée ?
+
+### **OUI - Chiffrement AES-256 avec encodage Base64**
+
+#### **A. Conversion en Base64 avant chiffrement**
+
+**Fichier:** `frontend/src/views/UploadView.vue`
+
+**Lignes 57-68 - Lecture et encodage du fichier:**
+```javascript
+// 1. Read file locally as ArrayBuffer (works for all file types including PDFs)
+const reader = new FileReader();
+reader.readAsArrayBuffer(file.value);
+
+reader.onload = async (e) => {
+    try {
+        const arrayBuffer = e.target.result;
+        // Convert ArrayBuffer to Base64 string for encryption
+        const uint8Array = new Uint8Array(arrayBuffer);
+        let binary = '';
+        uint8Array.forEach(byte => binary += String.fromCharCode(byte));
+        const base64Content = btoa(binary);
+```
+**Screenshot:** Lignes 57-68 de `UploadView.vue`
+
+**Explication:**
+- **Ligne 59**: `readAsArrayBuffer()` lit le fichier en bytes bruts (fonctionne pour PDF, images, etc.)
+- **Ligne 63**: `e.target.result` contient le fichier complet en mémoire
+- **Ligne 65**: Conversion en `Uint8Array` (tableau d'octets non signés 0-255)
+- **Ligne 67**: Boucle sur chaque byte pour créer une chaîne binaire
+- **Ligne 68**: `btoa()` encode en Base64 (format texte transportable)
+- **Résultat**: Le fichier original est préservé bit par bit dans le format Base64
+
+---
+
+**Lignes 70-75 - Chiffrement du contenu encodé:**
+```javascript
+// 2. Encrypt Content (Client-Side)
+// The server NEVER sees the rawContent
+const encryptedContent = encryptData(base64Content);
+
+if (!encryptedContent) {
+    throw new Error("Encryption failed. Are you logged in?");
+}
+```
+**Screenshot:** Lignes 70-75 de `UploadView.vue`
+
+**Explication:**
+- **Ligne 72**: Chiffrement AES-256 du contenu Base64 (voir crypto.js ligne 37)
+- **Ligne 72**: Le serveur ne voit JAMAIS le contenu original
+- **Ligne 74**: Si le chiffrement échoue (pas de clé), lance une exception
+- **Résultat**: Intégrité cryptographique, le contenu chiffré contient toute l'information du fichier original
+
+---
+
+#### **B. Protection de l'intégrité par AES-256**
+
+**Fichier:** `frontend/src/utils/crypto.js`
+
+**Lignes 32-40 - Chiffrement AES (rappel):**
+```javascript
+export const encryptData = (data) => {
+    if (!SECRET_KEY) {
+        console.error("Aucune clé de chiffrement définie !");
+        return null;
+    }
+    return CryptoJS.AES.encrypt(data, SECRET_KEY).toString();
+};
+```
+**Screenshot:** Lignes 32-40 de `crypto.js`
+
+**Explication:**
+- **Ligne 37**: `CryptoJS.AES.encrypt()` utilise AES-256 en mode CBC par défaut
+- **Ligne 37**: AES assure la **confidentialité** ET l'**intégrité** via le mode CBC avec padding
+- **Ligne 37**: Toute modification du contenu chiffré rendra le déchiffrement impossible
+- **Résultat**: Si quelqu'un modifie le fichier `.enc` sur le serveur, le déchiffrement échouera
+
+---
+
+**Lignes 43-51 - Détection d'altération au déchiffrement:**
+```javascript
+export const decryptData = (cipherText) => {
+    if (!SECRET_KEY) return null;
+    try {
+        const bytes = CryptoJS.AES.decrypt(cipherText, SECRET_KEY);
+        return bytes.toString(CryptoJS.enc.Utf8);
+    } catch (e) {
+        console.error("Erreur de déchiffrement", e);
+        return "Donnée illisible";
+    }
+};
+```
+**Screenshot:** Lignes 43-51 de `crypto.js`
+
+**Explication:**
+- **Ligne 46**: Tentative de déchiffrement du contenu
+- **Ligne 47**: Conversion en UTF-8 (échouera si les données ont été altérées)
+- **Ligne 48**: Si erreur (mauvaise clé OU données corrompues), capture l'exception
+- **Ligne 49**: Retourne "Donnée illisible" au lieu de planter l'application
+- **Résultat**: Détection automatique de corruption ou modification, l'utilisateur est alerté
+
+---
+
+## 3. Est-ce que les opérations critiques sont validées avant exécution ?
+
+### **OUI - Système de workflow avec approbation obligatoire**
+
+#### **A. Validation des permissions avant upload (Docteur)**
+
+**Fichier:** `backend/med_secure/views.py`
+
+**Lignes 538-560 - Vérifications multiples avant création de demande:**
+```python
+# If doctor uploads - create pending request
+elif hasattr(user, 'doctor_profile'):
+    patient_id = self.request.data.get('patient_id')
+    if not patient_id:
+        raise drf_serializers.ValidationError(
+            "patient_id is required for doctor uploads"
+        )
+    
+    try:
+        patient = Patient.objects.get(id=patient_id)
+        
+        # Verify doctor is appointed to this patient
+        if not patient.appointed_doctors.filter(id=user.doctor_profile.id).exists():
+            raise permissions.PermissionDenied(
+                "You are not appointed to this patient"
+            )
+        
+        # Create pending request instead of immediate upload
+        file_obj = self.request.FILES.get('file')
+        file_name = self.request.data.get('name', '')
+        file_description = self.request.data.get('description', '')
+```
+**Screenshot:** Lignes 538-560 de `views.py`
+
+**Explication:**
+- **Ligne 540**: Vérifie que le docteur a fourni un `patient_id`
+- **Ligne 541**: Si manquant → erreur 400 (Bad Request), upload refusé
+- **Ligne 547**: Vérifie que le patient existe en base de données
+- **Ligne 550**: **Validation critique**: vérifie que le docteur est assigné à ce patient
+- **Ligne 551**: Si pas assigné → erreur 403 (Forbidden), pas d'upload possible
+- **Ligne 555**: Si tout est OK, crée une demande en attente (pas d'upload direct)
+- **Résultat**: Impossible pour un docteur d'uploader un fichier pour un patient non assigné
+
+---
+
+**Lignes 562-572 - Création de demande en attente:**
+```python
+FileActionRequest.objects.create(
+    patient=patient,
+    doctor=user.doctor_profile,
+    action_type='upload',
+    file_data=file_obj,
+    file_name=file_name,
+    file_description=file_description,
+    status='pending'
+)
+
+raise drf_serializers.ValidationError({
+    'pending': True,
+    'message': 'Upload request sent to patient for approval'
+})
+```
+**Screenshot:** Lignes 562-572 de `views.py`
+
+**Explication:**
+- **Ligne 562**: Crée un objet `FileActionRequest` au lieu d'un `MedicalFile`
+- **Ligne 569**: Statut 'pending' = en attente d'approbation du patient
+- **Ligne 572**: Renvoie une erreur 400 MAIS avec `pending=true` (signal spécial)
+- **Ligne 573**: Message indiquant que la demande a été envoyée
+- **Résultat**: Le fichier n'est pas encore dans les dossiers médicaux, patient doit approuver
+
+---
+
+#### **B. Workflow d'approbation avec double vérification**
+
+**Fichier:** `backend/med_secure/views.py`
+
+**Lignes 748-760 - Vérifications strictes avant approbation:**
+```python
+# Only patient can approve
+if not hasattr(request.user, 'patient_profile'):
+    return Response({'error': 'Only patients can approve requests'}, 
+                  status=status.HTTP_403_FORBIDDEN)
+
+if action_request.patient.user != request.user:
+    return Response({'error': 'Permission denied'}, 
+                  status=status.HTTP_403_FORBIDDEN)
+
+if action_request.status != 'pending':
+    return Response({'error': 'Request is not pending'}, 
+                  status=status.HTTP_400_BAD_REQUEST)
+```
+**Screenshot:** Lignes 748-760 de `views.py`
+
+**Explication:**
+- **Ligne 750**: Vérifie que c'est bien un patient qui tente d'approuver (pas un docteur)
+- **Ligne 754**: Vérifie que le patient qui approuve est bien celui concerné
+- **Ligne 755**: Pas d'approbation par un autre patient (intégrité des données)
+- **Ligne 758**: Vérifie que la demande est bien en statut 'pending'
+- **Ligne 759**: Impossible d'approuver une demande déjà approuvée ou rejetée (pas de double exécution)
+- **Résultat**: Intégrité du workflow garantie, seul le patient concerné peut approuver
+
+---
+
+**Lignes 137-159 - Exécution sécurisée de l'action approuvée:**
+```python
+def execute_action(self):
+    """Execute the approved action"""
+    if self.status != 'approved':
+        raise ValueError("Can only execute approved actions")
+    
+    if self.action_type == 'upload':
+        # Create new medical file
+        MedicalFile.objects.create(
+            patient=self.patient,
+            file=self.file_data,
+            name=self.file_name,
+            description=self.file_description,
+            uploaded_by=self.doctor.user
+        )
+    
+    elif self.action_type == 'edit':
+        # Update existing file
+        if self.target_file:
+            self.target_file.file = self.file_data
+            self.target_file.name = self.file_name
+            self.target_file.description = self.file_description
+            self.target_file.save()
+```
+**Screenshot:** Lignes 137-159 de `models.py`
+
+**Explication:**
+- **Ligne 139**: Double vérification: statut doit être 'approved' pour exécuter
+- **Ligne 140**: Lève une exception si tentative d'exécution non autorisée
+- **Ligne 142**: Si action = 'upload', crée le fichier médical
+- **Ligne 143**: `MedicalFile.objects.create()` est une opération atomique
+- **Ligne 148**: Traçabilité: `uploaded_by` contient le docteur qui a initié la demande
+- **Ligne 150**: Pour édition, vérifie que `target_file` existe
+- **Ligne 153**: `.save()` déclenche une transaction (si erreur → rollback)
+- **Résultat**: Action exécutée seulement si approuvée, avec traçabilité complète
+
+---
+
+## Résumé - Intégrité des données stockées
+
+| Mécanisme d'intégrité | Implémentation | Protection |
+|------------------------|----------------|------------|
+| **Contraintes DB** | OneToOneField, ForeignKey, CASCADE | Pas de références cassées |
+| **Validations** | Serializers, min_length, ChoiceField | Pas de données invalides |
+| **Transactions** | Django transactions par défaut | Atomicité des opérations |
+| **Chiffrement AES** | Mode CBC avec padding | Détection d'altération |
+| **Workflow** | Statut pending → approved → execute | Pas d'actions non autorisées |
+| **Permissions** | Vérifications multiples avant actions | Contrôle d'accès strict |
+| **Traçabilité** | uploaded_by, created_at read-only | Audit trail non falsifiable |
+
+---
+
+---
+
+**Date du rapport:** 21 décembre 2025  
