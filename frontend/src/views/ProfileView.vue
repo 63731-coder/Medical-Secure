@@ -1,93 +1,115 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
+import { clearEncryptionKey } from '../utils/crypto';
+import api from '../services/api';
 
 const router = useRouter();
-const user = ref({ name: 'Patient', email: '—', role: 'Patient' });
+const user = ref(null);
+const profile = ref(null);
+const userType = ref(null);
+const loading = ref(true);
 
-onMounted(() => {
-    const storedName = localStorage.getItem('username');
-    const storedEmail = localStorage.getItem('email');
-    if (storedName) user.value.name = storedName;
-    if (storedEmail) user.value.email = storedEmail;
+onMounted(async () => {
+    try {
+        const response = await api.getProfile();
+        user.value = response.data;
+        profile.value = response.data.profile;
+        userType.value = response.data.user_type;
+        loading.value = false;
+    } catch (error) {
+        console.error('Failed to load profile:', error);
+        loading.value = false;
+    }
 });
 
 function logout() {
-    // Limpiar estado local y redirigir (ajustar según autenticación real)
-    localStorage.removeItem('token');
+    clearEncryptionKey();
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    sessionStorage.clear();
     router.push('/login');
-}
-
-function editProfile() {
-    // Ruta de edición; puede necesitar ser creada en el router
-    router.push('/profile/edit');
 }
 </script>
 
 <template>
     <div class="max-w-4xl mx-auto py-8">
-        <div class="bg-white shadow-lg rounded-xl p-6 border border-gray-100">
-            <div class="flex items-center space-x-6">
-                <div
-                    class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold">
-                    {{ user.name.charAt(0).toUpperCase() }}
-                </div>
-                <div class="flex-1">
-                    <h2 class="text-2xl font-extrabold text-gray-900">{{ user.name }}</h2>
-                    <p class="text-sm text-gray-500">{{ user.email }}</p>
-                    <p class="mt-2 text-xs text-gray-400">Role: {{ user.role }}</p>
-                </div>
-                <div class="flex flex-col gap-2">
-                    <button @click="editProfile"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg">Edit
-                        Profile</button>
-                    <button @click="logout"
-                        class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 font-medium px-4 py-2 rounded-lg">Log
-                        out</button>
-                </div>
-            </div>
-
-            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                    <h3 class="font-semibold text-gray-900 mb-2">Security</h3>
-                    <p class="text-sm text-gray-600 mb-3">Your data is encrypted locally. The server never sees your
-                        decrypted medical records.</p>
-                    <div class="flex items-center text-sm text-gray-700">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-green-600" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 11c0-1.657-1.343-3-3-3S6 9.343 6 11s1.343 3 3 3 3-1.343 3-3z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 11V7m0 4v5m0 0H9m3 0h3" />
-                        </svg>
-                        <span>AES-256 local encryption active</span>
+        <div v-if="loading" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="text-gray-500 mt-2">Loading profile...</p>
+        </div>
+        
+        <div v-else-if="user" class="bg-white shadow-lg rounded-xl p-6 border border-gray-100">
+            <div class="flex items-start justify-between mb-6">
+                <div class="flex items-center space-x-6">
+                    <div
+                        class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold">
+                        {{ user.first_name ? user.first_name.charAt(0).toUpperCase() : 'U' }}
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-extrabold text-gray-900">
+                            {{ user.first_name }} {{ user.last_name }}
+                        </h2>
+                        <p class="text-sm text-gray-500 mt-1">@{{ user.username }}</p>
+                        <p class="text-xs text-gray-400 mt-1 capitalize">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {{ userType }}
+                            </span>
+                        </p>
                     </div>
                 </div>
+                <button @click="logout"
+                    class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 font-medium px-4 py-2 rounded-lg transition">
+                    Log out
+                </button>
+            </div>
 
-                <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                    <h3 class="font-semibold text-gray-900 mb-2">Manage Access</h3>
-                    <p class="text-sm text-gray-600 mb-3">See which doctors have access to your records and revoke
-                        permissions.</p>
-                    <RouterLink to="/doctors"
-                        class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-semibold px-3 py-2 rounded-lg">
-                        Manage Doctors</RouterLink>
-                </div>
-
-                <div class="md:col-span-2 p-4 bg-white rounded-lg border border-gray-100">
-                    <h3 class="font-semibold text-gray-900 mb-2">Account Actions</h3>
-                    <div class="flex gap-3 flex-wrap">
-                        <RouterLink to="/change-password"
-                            class="text-sm bg-yellow-50 hover:bg-yellow-100 text-yellow-800 border border-yellow-100 px-3 py-2 rounded-md">
-                            Change Password</RouterLink>
-                        <RouterLink to="/records"
-                            class="text-sm bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-100 px-3 py-2 rounded-md">
-                            View Medical Records</RouterLink>
-                        <RouterLink to="/upload"
-                            class="text-sm bg-green-50 hover:bg-green-100 text-green-800 border border-green-100 px-3 py-2 rounded-md">
-                            Upload Files</RouterLink>
+            <!-- Profile Information -->
+            <div class="border-t pt-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Profile Information</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">First Name</label>
+                        <p class="text-gray-900 font-medium mt-1">{{ user.first_name || 'N/A' }}</p>
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Last Name</label>
+                        <p class="text-gray-900 font-medium mt-1">{{ user.last_name || 'N/A' }}</p>
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Username</label>
+                        <p class="text-gray-900 font-medium mt-1">@{{ user.username }}</p>
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Email</label>
+                        <p class="text-gray-900 font-medium mt-1">{{ user.email || 'N/A' }}</p>
+                    </div>
+                    
+                    <div v-if="userType === 'patient' && profile" class="bg-gray-50 rounded-lg p-4">
+                        <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Date of Birth</label>
+                        <p class="text-gray-900 font-medium mt-1">
+                            {{ profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString() : 'N/A' }}
+                        </p>
+                    </div>
+                    
+                    <div v-if="userType === 'doctor' && profile" class="bg-gray-50 rounded-lg p-4">
+                        <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Organisation</label>
+                        <p class="text-gray-900 font-medium mt-1">{{ profile.organisation || 'N/A' }}</p>
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Account Type</label>
+                        <p class="text-gray-900 font-medium mt-1 capitalize">{{ userType }}</p>
                     </div>
                 </div>
             </div>
+        </div>
+        
+        <div v-else class="bg-white shadow-lg rounded-xl p-6 border border-gray-100 text-center">
+            <p class="text-gray-500">Failed to load profile</p>
         </div>
     </div>
 </template>

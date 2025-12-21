@@ -1,6 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import DoctorListView, DoctorDetailView, PatientViewSet, MedicalFileViewSet
+from .views import (
+    DoctorListView, DoctorDetailView,
+    PatientViewSet, MedicalFileViewSet,
+    DoctorPatientRequestViewSet, PatientListView,
+    FileActionRequestViewSet
+)
 from .keycloak_views import (
     KeycloakRegisterView,
     KeycloakLoginView,
@@ -12,11 +17,13 @@ from .keycloak_views import (
 )
 
 router = DefaultRouter()
-router.register("patients", PatientViewSet, basename="patient")
-router.register("files", MedicalFileViewSet, basename="file")
+router.register(r'patients', PatientViewSet, basename='patient')
+router.register(r'files', MedicalFileViewSet, basename='file')
+router.register(r'requests', DoctorPatientRequestViewSet, basename='request')
+router.register(r'file-requests', FileActionRequestViewSet, basename='file-request')
 
 urlpatterns = [
-    # Auth endpoints
+    # Keycloak Auth endpoints
     path("auth/config/", KeycloakConfigView.as_view(), name="keycloak-config"),
     path("auth/register/", KeycloakRegisterView.as_view(), name="keycloak-register"),
     path("auth/login/", KeycloakLoginView.as_view(), name="keycloak-login"),
@@ -28,7 +35,10 @@ urlpatterns = [
     # Doctors
     path("doctors/", DoctorListView.as_view(), name="doctor-list"),
     path("doctors/<int:pk>/", DoctorDetailView.as_view(), name="doctor-detail"),
+    
+    # Patient endpoints
+    path('all-patients/', PatientListView.as_view(), name='all-patients'),
 
-    # Router URLs
+    # Router URLs (patients, files, requests, file-requests)
     path("", include(router.urls)),
 ]

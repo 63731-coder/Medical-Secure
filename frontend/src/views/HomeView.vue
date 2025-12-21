@@ -1,14 +1,36 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
+import api from '../services/api';
 
-// Simulation de l'état utilisateur (plus tard via Pinia/API)
-const userName = ref("Patient"); 
+// User state
+const userName = ref("User"); 
+const userType = ref(null);
+const pendingRequestsCount = ref(0);
+const pendingFileActionsCount = ref(0);
 
-onMounted(() => {
-  // Ici on pourrait récupérer le vrai nom de l'utilisateur depuis l'API
+onMounted(async () => {
+  // Get user profile
   const storedUser = localStorage.getItem('username');
   if (storedUser) userName.value = storedUser;
+  
+  try {
+    const profileRes = await api.getProfile();
+    userType.value = profileRes.data.user_type;
+    userName.value = profileRes.data.first_name || storedUser;
+    
+    // If patient, check for pending requests
+    if (userType.value === 'patient') {
+      const requestsRes = await api.getRequests();
+      pendingRequestsCount.value = requestsRes.data.filter(r => r.status === 'pending').length;
+      
+      // Check for pending file action requests
+      const fileActionsRes = await api.getFileActionRequests();
+      pendingFileActionsCount.value = fileActionsRes.data.filter(r => r.status === 'pending').length;
+    }
+  } catch (e) {
+    console.error('Failed to load profile:', e);
+  }
 });
 </script>
 
@@ -34,7 +56,7 @@ onMounted(() => {
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       
-      <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 border border-gray-100 flex flex-col">
+      <div v-if="userType === 'patient'" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 border border-gray-100 flex flex-col">
         <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
         </div>
@@ -47,7 +69,7 @@ onMounted(() => {
         </RouterLink>
       </div>
 
-      <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 border border-gray-100 flex flex-col">
+      <div v-if="userType === 'patient'" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 border border-gray-100 flex flex-col">
         <div class="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
         </div>
@@ -60,7 +82,10 @@ onMounted(() => {
         </RouterLink>
       </div>
 
-      <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 border border-gray-100 flex flex-col">
+      <div v-if="userType === 'patient'" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 border border-gray-100 flex flex-col relative">
+        <div v-if="pendingRequestsCount > 0" class="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+          {{ pendingRequestsCount }}
+        </div>
         <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mb-4">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
         </div>
@@ -68,23 +93,47 @@ onMounted(() => {
         <p class="text-gray-500 text-sm mb-6 flex-grow">
           Manage access rights and view the list of doctors authorized to see your data.
         </p>
-        <RouterLink to="/doctors" class="w-full text-center bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-          Manage Access
+        <div class="space-y-2">
+          <RouterLink to="/doctors" class="w-full block text-center bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+            Manage Doctors
+          </RouterLink>
+          <RouterLink v-if="pendingRequestsCount > 0" to="/doctor-requests" class="w-full block text-center bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+            Review Requests ({{ pendingRequestsCount }})
+          </RouterLink>
+        </div>
+      </div>
+
+      <div v-if="userType === 'doctor'" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 border border-gray-100 flex flex-col">
+        <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mb-4">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+        </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">My Patients</h3>
+        <p class="text-gray-500 text-sm mb-6 flex-grow">
+          Manage your patients and send access requests to view their medical records.
+        </p>
+        <RouterLink to="/my-patients" class="w-full text-center bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+          Manage Patients
         </RouterLink>
       </div>
 
-    </div>
-
-    <div class="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6 flex items-start">
-        <svg class="w-6 h-6 text-blue-800 mr-4 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-        <div>
-            <h4 class="text-lg font-semibold text-blue-900 mb-1">How it works?</h4>
-            <ul class="list-disc list-inside text-blue-800 space-y-1 text-sm">
-                <li>Your data is encrypted using <strong>AES-256</strong> directly in your browser.</li>
-                <li>The server (Django) never sees your health data in plain text.</li>
-                <li>Only you possess the decryption key (derived from your password).</li>
-            </ul>
+      <div v-if="userType === 'patient' && pendingFileActionsCount > 0" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 border border-yellow-200 flex flex-col relative">
+        <div class="absolute top-4 right-4 bg-orange-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+          {{ pendingFileActionsCount }}
         </div>
+        <div class="w-12 h-12 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mb-4">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">File Actions</h3>
+        <p class="text-gray-500 text-sm mb-6 flex-grow">
+          Your doctors have requested file operations that require your approval.
+        </p>
+        <RouterLink to="/file-action-requests" class="w-full text-center bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+          Review File Actions ({{ pendingFileActionsCount }})
+        </RouterLink>
+      </div>
+
     </div>
   </div>
 </template>

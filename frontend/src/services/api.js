@@ -10,14 +10,31 @@ const apiClient = axios.create({
 
 // Add token to all requests
 apiClient.interceptors.request.use((config) => {
-    const token = localStorage.getItem('accessToken');
+    const token = localStorage.getItem('access_token');  // Keycloak uses 'access_token'
     if (token) {
-        config.headers.Authorization = `Token ${token}`;
+        config.headers.Authorization = `Bearer ${token}`;  // JWT uses Bearer
     }
     return config;
 });
 
 export default {
+    // Generic HTTP methods (for direct API calls)
+    get(url, config) {
+        return apiClient.get(url, config);
+    },
+    
+    post(url, data, config) {
+        return apiClient.post(url, data, config);
+    },
+    
+    put(url, data, config) {
+        return apiClient.put(url, data, config);
+    },
+    
+    delete(url, config) {
+        return apiClient.delete(url, config);
+    },
+
     // Auth
     register(userData) {
         return apiClient.post('/register/', userData);
@@ -32,7 +49,7 @@ export default {
     },
     
     getProfile() {
-        return apiClient.get('/profile/');
+        return apiClient.get('/auth/me/');  // Keycloak endpoint
     },
 
     // Medical Records
@@ -49,8 +66,11 @@ export default {
         });
     },
     
+    // Download encrypted file (returns blob for client-side decryption)
     downloadFile(fileId) {
-        return apiClient.get(`/files/${fileId}/`);
+        return apiClient.get(`/files/${fileId}/download/`, {
+            responseType: 'blob'
+        });
     },
     
     deleteFile(fileId) {
@@ -73,5 +93,40 @@ export default {
     // Patients
     getPatients() {
         return apiClient.get('/patients/');
+    },
+
+    // All patients (for doctors)
+    getAllPatients() {
+        return apiClient.get('/all-patients/');
+    },
+
+    // Doctor-Patient Requests
+    getRequests() {
+        return apiClient.get('/requests/');
+    },
+
+    createRequest(data) {
+        return apiClient.post('/requests/', data);
+    },
+
+    approveRequest(requestId) {
+        return apiClient.post(`/requests/${requestId}/approve/`);
+    },
+
+    rejectRequest(requestId) {
+        return apiClient.post(`/requests/${requestId}/reject/`);
+    },
+
+    // File Action Requests
+    getFileActionRequests() {
+        return apiClient.get('/file-requests/');
+    },
+
+    approveFileAction(requestId) {
+        return apiClient.post(`/file-requests/${requestId}/approve/`);
+    },
+
+    rejectFileAction(requestId) {
+        return apiClient.post(`/file-requests/${requestId}/reject/`);
     }
 };

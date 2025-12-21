@@ -1,61 +1,110 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
+import api from '@/services/api';
+import ConfirmModal from '../components/ConfirmModal.vue';
 
-const query = ref('');
 const doctors = ref([]);
+const allDoctors = ref([]);
+const appointedDoctorIds = ref([]);
+const loading = ref(true);
+const error = ref('');
+const currentPatientId = ref(null);
+const showConfirmModal = ref(false);
+const doctorToRevoke = ref(null);
 
-onMounted(() => {
-    const stored = localStorage.getItem('doctors');
-    if (stored) {
-        try { doctors.value = JSON.parse(stored); } catch (e) { doctors.value = []; }
-    }
-    if (!doctors.value.length) {
-        doctors.value = [
-            { id: 1, name: 'Dr. Alice Martin', specialty: 'Cardiology', hospital: 'Central Hospital' },
-            { id: 2, name: 'Dr. Bruno Silva', specialty: 'Dermatology', hospital: 'East Clinic' },
-            { id: 3, name: 'Dr. Clara Gomez', specialty: 'Pediatrics', hospital: 'North Medical' },
-            { id: 4, name: 'Dr. Daniel Kim', specialty: 'Neurology', hospital: 'West Care' },
-        ];
-    }
+onMounted(async () => {
+    await fetchDoctors();
 });
 
-const filtered = computed(() => {
-    const q = query.value.trim().toLowerCase();
-    if (!q) return doctors.value;
-    return doctors.value.filter(d => (
-        d.name.toLowerCase().includes(q) ||
-        d.specialty.toLowerCase().includes(q) ||
-        (d.hospital && d.hospital.toLowerCase().includes(q))
-    ));
-});
+const fetchDoctors = async () => {
+    try {
+        // Get patient profile to know appointed doctors
+        const profileRes = await api.get('/auth/me/');
+        
+        if (profileRes.data.user_type !== 'patient') {
+            error.value = "This page is for patients only.";
+            loading.value = false;
+            return;
+        }
+        
+        currentPatientId.value = profileRes.data.profile.id;
+        appointedDoctorIds.value = profileRes.data.profile.appointed_doctors.map(d => d.id);
+        
+        // Get all doctors
+        const doctorsRes = await api.get('/doctors/');
+        
+        allDoctors.value = doctorsRes.data;
+        
+        // Show only appointed doctors
+        doctors.value = doctorsRes.data.filter(d => appointedDoctorIds.value.includes(d.id));
+        loading.value = false;
+    } catch (e) {
+        console.error("Failed to fetch doctors:", e);
+        error.value = "Failed to load doctors.";
+        loading.value = false;
+    }
+};
+
+const openRevokeConfirmation = (doctor) => {
+    doctorToRevoke.value = doctor;
+    showConfirmModal.value = true;
+};
+
+const confirmRevoke = async () => {
+    showConfirmModal.value = false;
+    
+    if (!doctorToRevoke.value) return;
+    
+    try {
+        await api.delete(`/patients/${currentPatientId.value}/remove-doctor/${doctorToRevoke.value.id}/`);
+        
+        // Refresh list
+        await fetchDoctors();
+        error.value = ''; // Clear any previous errors
+    } catch (e) {
+        console.error("Failed to revoke doctor:", e);
+        error.value = 'Failed to revoke doctor access.';
+    }
+    
+    doctorToRevoke.value = null;
+};
+
+const cancelRevoke = () => {
+    showConfirmModal.value = false;
+    doctorToRevoke.value = null;
+};
+
+
 </script>
 
 <template>
     <div class="max-w-5xl mx-auto py-8">
         <div class="flex items-center justify-between mb-6">
             <div>
-                <h1 class="text-2xl font-extrabold text-gray-900">Doctors</h1>
-                <p class="text-sm text-gray-500">Find and manage the doctors who can access your records.</p>
+                <h1 class="text-2xl font-extrabold text-gray-900">My Appointed Doctors</h1>
+                <p class="text-sm text-gray-500">Manage the doctors who can access your medical records.</p>
             </div>
-            <div class="w-72">
-                <input v-model="query" type="search" placeholder="Search by name, specialty, hospital"
-                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200" />
-            </div>
+            <RouterLink to="/search-doctors"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                + Search Doctors
+            </RouterLink>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div v-for="doctor in filtered" :key="doctor.id"
+        <div v-if="loading" class="text-center py-10 text-gray-500">Loading doctors...</div>
+        <div v-else-if="error" class="text-center py-10 text-red-600">{{ error }}</div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div v-for="doctor in doctors" :key="doctor.id"
                 class="bg-white p-4 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
                 <div class="flex items-center gap-4">
                     <div
                         class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-indigo-600 flex items-center justify-center text-white text-lg font-semibold">
-                        {{ doctor.name.charAt(3) ? doctor.name.split(' ').slice(-1)[0].charAt(0) : doctor.name.charAt(0)
-                        }}
+                        {{ doctor.user.last_name.charAt(0) }}
                     </div>
                     <div>
-                        <div class="font-semibold text-gray-900">{{ doctor.name }}</div>
-                        <div class="text-sm text-gray-500">{{ doctor.specialty }} • {{ doctor.hospital }}</div>
+                        <div class="font-semibold text-gray-900">Dr. {{ doctor.user.first_name }} {{ doctor.user.last_name }}</div>
+                        <div class="text-sm text-gray-500">{{ doctor.organisation }}</div>
                     </div>
                 </div>
 
@@ -63,12 +112,28 @@ const filtered = computed(() => {
                     <RouterLink :to="{ name: 'doctor-detail', params: { id: doctor.id } }"
                         class="text-sm bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-100 px-3 py-2 rounded-md">
                         View</RouterLink>
-                    <button
-                        class="text-sm bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 px-3 py-2 rounded-md">Revoke</button>
+                    <button @click="openRevokeConfirmation(doctor)"
+                        class="text-sm bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 px-3 py-2 rounded-md">
+                        Revoke
+                    </button>
                 </div>
             </div>
         </div>
 
-        <div v-if="!filtered.length" class="mt-6 text-center text-gray-500">No doctors found.</div>
+        <div v-if="!loading && !error && !doctors.length" class="mt-6 text-center text-gray-500">
+            No appointed doctors found.
+        </div>
+
+        <!-- Confirmation Modal -->
+        <ConfirmModal
+            :show="showConfirmModal"
+            title="Revoke Doctor Access"
+            :message="doctorToRevoke ? `Are you sure you want to revoke access for Dr. ${doctorToRevoke.user.first_name} ${doctorToRevoke.user.last_name}? They will no longer be able to view your medical records.` : ''"
+            confirmText="Revoke Access"
+            cancelText="Cancel"
+            :isDangerous="true"
+            @confirm="confirmRevoke"
+            @cancel="cancelRevoke"
+        />
     </div>
 </template>

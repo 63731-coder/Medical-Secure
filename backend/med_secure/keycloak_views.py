@@ -387,6 +387,7 @@ class CurrentUserView(APIView):
             user_type = 'patient'
             patient = user.patient_profile
             profile_data = {
+                'id': patient.id,
                 'keycloak_id': patient.keycloak_id,
                 'date_of_birth': patient.date_of_birth,
                 'appointed_doctors': [
@@ -402,6 +403,7 @@ class CurrentUserView(APIView):
             user_type = 'doctor'
             doctor = user.doctor_profile
             profile_data = {
+                'id': doctor.id,
                 'keycloak_id': doctor.keycloak_id,
                 'organisation': doctor.organisation,
                 'patient_count': doctor.patients.count()

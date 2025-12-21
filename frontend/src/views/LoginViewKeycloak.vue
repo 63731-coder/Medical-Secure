@@ -109,7 +109,7 @@ export default {
         })
         
         // Store token
-        localStorage.setItem('accessToken', response.data.token)
+        localStorage.setItem('access_token', response.data.token)
         localStorage.setItem('userId', response.data.user_id)
         localStorage.setItem('userType', response.data.user_type)
         

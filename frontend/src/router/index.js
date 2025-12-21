@@ -46,6 +46,11 @@ const router = createRouter({
             component: () => import('../views/DoctorListView.vue')
         },
         {
+            path: '/search-doctors',
+            name: 'search-doctors',
+            component: () => import('../views/SearchDoctorsView.vue')
+        },
+        {
             path: '/doctors/:id', // Route dynamique
             name: 'doctor-detail',
             component: () => import('../views/DoctorDetailView.vue')
@@ -70,24 +75,44 @@ const router = createRouter({
             name: 'records',
             component: () => import('../views/MedicalRecordsView.vue')
         },
+        {
+            path: '/my-patients',
+            name: 'my-patients',
+            component: () => import('../views/MyPatientsView.vue')
+        },
+        {
+            path: '/add-patient',
+            name: 'add-patient',
+            component: () => import('../views/AddPatientView.vue')
+        },
+        {
+            path: '/doctor-requests',
+            name: 'doctor-requests',
+            component: () => import('../views/DoctorRequestsView.vue')
+        },
+        {
+            path: '/file-action-requests',
+            name: 'file-action-requests',
+            component: () => import('../views/FileActionRequestsView.vue')
+        },
     ]
 })
 
 
 // commentaire à enlever si on veut activer ne pas pouvoir naviger sans etre connecte
 
-/*
+
 // Simple Navigation Guard
 router.beforeEach((to, from, next) => {
-    const publicPages = ['/login', '/register', '/about'];
+    const publicPages = ['/login', '/register', '/about', '/callback'];
     const authRequired = !publicPages.includes(to.path);
-    const loggedIn = localStorage.getItem('accessToken');
+    const loggedIn = localStorage.getItem('access_token'); // Keycloak uses 'access_token'
 
     if (authRequired && !loggedIn) {
         return next('/login');
     }
     next();
 });
-*/
+
 
 export default router

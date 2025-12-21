@@ -15,6 +15,8 @@
 
 <script>
 import keycloakAuth from '@/services/keycloakAuth'
+import api from '@/services/api'
+import { deriveKeyFromUser } from '@/utils/crypto'
 import { useRouter } from 'vue-router'
 import { ref, onMounted } from 'vue'
 
@@ -39,6 +41,13 @@ export default {
         
         // Exchange code for tokens
         await keycloakAuth.handleCallback(code, state)
+        
+        // Fetch user profile to get username and keycloak_id
+        const response = await api.get('/auth/me/')
+        const userData = response.data
+        
+        // Generate deterministic encryption key based on user identity
+        deriveKeyFromUser(userData.username, userData.keycloak_id)
         
         // Redirect to home page
         router.push('/')

@@ -48,13 +48,13 @@ class KeycloakAuthentication(authentication.BaseAuthentication):
 
         for key in settings._KEYCLOAK_JWKS["keys"]:
             if key["kid"] == kid:
-                return RSAKey(key, algorithm="RS256").key
+                return RSAKey(key, algorithm="RS256")  # Return RSAKey object directly
 
         raise exceptions.AuthenticationFailed("Public key not found")
 
     def _sync_user(self, token):
         keycloak_id = token.get("sub")
-        username = token.get("preferred_username")
+        username = token.get("preferred_username") or token.get("sub")  # Fallback to sub
         email = token.get("email", "")
         first_name = token.get("given_name", "")
         last_name = token.get("family_name", "")
@@ -62,21 +62,32 @@ class KeycloakAuthentication(authentication.BaseAuthentication):
         if not keycloak_id:
             raise exceptions.AuthenticationFailed("No sub in token")
 
-        # Get or create Django user
-        user, created = User.objects.get_or_create(
-            username=username,
-            defaults={
-                "email": email,
-                "first_name": first_name,
-                "last_name": last_name,
-            }
-        )
+        # Get or create Django user by keycloak_id (via Patient/Doctor profile)
+        # First try to find existing user via Patient or Doctor profile
+        from .models import Patient, Doctor
         
-        # Update user info if not created
-        if not created:
-            user.email = email
-            user.first_name = first_name
-            user.last_name = last_name
+        try:
+            patient = Patient.objects.get(keycloak_id=keycloak_id)
+            user = patient.user
+        except Patient.DoesNotExist:
+            try:
+                doctor = Doctor.objects.get(keycloak_id=keycloak_id)
+                user = doctor.user
+            except Doctor.DoesNotExist:
+                # Create new user if not found
+                user, created = User.objects.get_or_create(
+                    username=username,
+                    defaults={
+                        "email": email,
+                        "first_name": first_name,
+                        "last_name": last_name,
+                    }
+                )
+        
+        # Update user info
+        user.email = email
+        user.first_name = first_name
+        user.last_name = last_name
         
         user.set_unusable_password()  # Password managed by Keycloak only
         user.save()

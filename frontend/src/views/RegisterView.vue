@@ -9,9 +9,7 @@ export default {
       email: '',
       firstName: '',
       lastName: '',
-      userType: 'patient',
       dateOfBirth: '',
-      organisation: '',
       errorMessage: '',
       loading: false
     }
@@ -28,14 +26,8 @@ export default {
           return
         }
 
-        if (this.userType === 'patient' && !this.dateOfBirth) {
-          this.errorMessage = 'Date of birth is required for patients'
-          this.loading = false
-          return
-        }
-
-        if (this.userType === 'doctor' && !this.organisation) {
-          this.errorMessage = 'Organisation is required for doctors'
+        if (!this.dateOfBirth) {
+          this.errorMessage = 'Date of birth is required'
           this.loading = false
           return
         }
@@ -49,9 +41,9 @@ export default {
           password: tempPassword,
           first_name: this.firstName,
           last_name: this.lastName,
-          user_type: this.userType,
-          date_of_birth: this.userType === 'patient' ? this.dateOfBirth : null,
-          organisation: this.userType === 'doctor' ? this.organisation : null
+          user_type: 'patient',  // Always patient
+          date_of_birth: this.dateOfBirth,
+          organisation: null
         })
 
         if (response.data) {
@@ -125,13 +117,7 @@ export default {
         {{ errorMessage }}
       </div>
 
-      <div>
-        <label class="block text-white text-sm font-bold mb-2">User Type *</label>
-        <select v-model="userType" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="patient">Patient</option>
-          <option value="doctor">Doctor</option>
-        </select>
-      </div>
+
 
       <div>
         <label class="block text-white text-sm font-bold mb-2">Username *</label>
@@ -153,7 +139,7 @@ export default {
         <input type="text" v-model="lastName" required placeholder="Doe" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
 
-      <div v-if="userType === 'patient'">
+      <div>
         <label class="block text-white text-sm font-bold mb-2">Date of Birth *</label>
         <input type="date" v-model="dateOfBirth" required class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
