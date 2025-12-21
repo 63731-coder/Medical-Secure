@@ -54,6 +54,8 @@ class DoctorPatientRequest(models.Model):
     Can be initiated by either the patient or the doctor.
     Requires approval from the patient.
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
     ACTION_CHOICES = [
         ('add', 'Add'),
         ('remove', 'Remove'),
@@ -83,6 +85,8 @@ class DoctorPatientRequest(models.Model):
 
 
 class MedicalFile(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
     patient = models.ForeignKey(
         Patient, on_delete=models.CASCADE, related_name="medical_files"
     )
@@ -109,6 +113,8 @@ class FileActionRequest(models.Model):
     Request for a file action (upload, edit, delete) initiated by a doctor.
     Requires approval from the patient.
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
     ACTION_CHOICES = [
         ('upload', 'Upload'),
         ('edit', 'Edit'),

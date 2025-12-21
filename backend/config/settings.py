@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config, Csv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +21,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=-(9e_0t$@d_m2w)0n#l1@-yqgjfiqsy$x)4y0)in_ui!z&vtr'
+SECRET_KEY = config('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=Csv())
 
 
 # Application definition
@@ -93,7 +94,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / config('DATABASE_NAME', default='db.sqlite3'),
     }
 }
 
@@ -165,11 +166,11 @@ CORS_ALLOWED_ORIGINS = [
 # ===========================
 # KEYCLOAK CONFIGURATION
 # ===========================
-KEYCLOAK_SERVER_URL = 'http://localhost:8080'
-KEYCLOAK_REALM = 'medical-realm'
-KEYCLOAK_CLIENT_ID = 'medical-app'
-KEYCLOAK_CLIENT_SECRET = 'o6HkeCbEUl5UpPxkq1SC7vvTeENRCUPq'
-KEYCLOAK_REDIRECT_URI = "http://localhost:5173/callback"
+KEYCLOAK_SERVER_URL = config('KEYCLOAK_SERVER_URL', default='http://localhost:8080')
+KEYCLOAK_REALM = config('KEYCLOAK_REALM', default='medical-realm')
+KEYCLOAK_CLIENT_ID = config('KEYCLOAK_CLIENT_ID', default='medical-app')
+KEYCLOAK_CLIENT_SECRET = config('KEYCLOAK_CLIENT_SECRET')
+KEYCLOAK_REDIRECT_URI = config('KEYCLOAK_REDIRECT_URI', default='http://localhost:5173/callback')
 
 # ================================================
 # Security Settings for HTTPS and Data Protection
