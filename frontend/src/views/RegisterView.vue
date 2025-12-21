@@ -61,12 +61,17 @@ export default {
           // Stocker pour référence
           sessionStorage.setItem('new_user', this.username)
           
+          // Générer state pour sécurité CSRF
+          const state = this.generateRandomString(32)
+          sessionStorage.setItem('oauth_state', state)
+          
           const keycloakAuthUrl = `http://localhost:8080/realms/medical-realm/protocol/openid-connect/auth`
           const params = new URLSearchParams({
             client_id: 'medical-app',
             redirect_uri: 'http://localhost:5173/callback',
             response_type: 'code',
             scope: 'openid profile email',
+            state: state,
             login_hint: this.username,
             // Force immediate authentication (no SSO)
             prompt: 'login'
@@ -94,6 +99,15 @@ export default {
       }
       // Retourne un password qui contient le code + suffixe pour respecter la policy
       return code + '!Aa1'
+    },
+
+    generateRandomString(length) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+      let result = ''
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length))
+      }
+      return result
     }
   }
 }
