@@ -182,20 +182,29 @@ class KeycloakRegisterView(APIView):
         """Assign a realm role to a user"""
         # Get role details
         roles_url = f"{settings.KEYCLOAK_SERVER_URL}/admin/realms/{settings.KEYCLOAK_REALM}/roles/{role_name}"
-        headers = {'Authorization': f'Bearer {admin_token}'}
+        headers = {'Authorization': f'Bearer {admin_token}', 'Content-Type': 'application/json'}
         
         try:
+            print(f"[DEBUG] Getting role {role_name} from {roles_url}")
             role_response = requests.get(roles_url, headers=headers)
+            print(f"[DEBUG] Role fetch status: {role_response.status_code}")
+            
             if role_response.status_code != 200:
+                print(f"[ERROR] Failed to get role: {role_response.text}")
                 return False
             
             role = role_response.json()
+            print(f"[DEBUG] Role found: {role}")
             
             # Assign role to user
             assign_url = f"{settings.KEYCLOAK_SERVER_URL}/admin/realms/{settings.KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm"
-            requests.post(assign_url, json=[role], headers=headers)
+            print(f"[DEBUG] Assigning role to user at {assign_url}")
+            assign_response = requests.post(assign_url, json=[role], headers=headers)
+            print(f"[DEBUG] Role assignment status: {assign_response.status_code}")
+            print(f"[DEBUG] Role assignment response: {assign_response.text}")
             return True
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] Exception in role assignment: {str(e)}")
             return False
 
 
@@ -227,7 +236,11 @@ class KeycloakCallbackView(APIView):
         }
 
         try:
+            print(f"[DEBUG] Token URL: {token_url}")
+            print(f"[DEBUG] Request data: {data}")
             response = requests.post(token_url, data=data)
+            print(f"[DEBUG] Response status: {response.status_code}")
+            print(f"[DEBUG] Response text: {response.text}")
 
             if response.status_code != 200:
                 return Response({

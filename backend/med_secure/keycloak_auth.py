@@ -59,6 +59,8 @@ class KeycloakAuthentication(authentication.BaseAuthentication):
         first_name = token.get("given_name", "")
         last_name = token.get("family_name", "")
 
+        print(f"[DEBUG] Token data - sub: {keycloak_id}, username: {username}, email: {email}, first_name: {first_name}, last_name: {last_name}")
+
         if not keycloak_id:
             raise exceptions.AuthenticationFailed("No sub in token")
 
@@ -84,10 +86,13 @@ class KeycloakAuthentication(authentication.BaseAuthentication):
                     }
                 )
         
-        # Update user info
-        user.email = email
-        user.first_name = first_name
-        user.last_name = last_name
+        # Update user info only if token has non-empty values (don't overwrite DB with empty values)
+        if email:
+            user.email = email
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
         
         user.set_unusable_password()  # Password managed by Keycloak only
         user.save()

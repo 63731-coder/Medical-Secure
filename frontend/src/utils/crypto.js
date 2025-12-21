@@ -35,7 +35,6 @@ export const deriveKeyFromUser = (username, keycloakId) => {
     });
     SECRET_KEY = key.toString();
     sessionStorage.setItem('encryptionKey', SECRET_KEY);
-    console.log("Clé de chiffrement déterministe générée pour", username);
 };
 
 // Clear encryption key on logout
