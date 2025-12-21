@@ -61,8 +61,9 @@ class KeycloakRegisterView(APIView):
             'credentials': [{
                 'type': 'password',
                 'value': password,
-                'temporary': False
+                'temporary': True  # Force password change (will trigger passkey setup)
             }],
+            'requiredActions': ['webauthn-register-passwordless'],  # Force passkey setup
             'realmRoles': [user_type],
             'attributes': {}
         }

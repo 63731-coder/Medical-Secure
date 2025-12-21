@@ -40,6 +40,7 @@ export default {
           return
         }
 
+        // Générer un mot de passe temporaire simple
         const tempPassword = this.generateTempPassword()
 
         const response = await axios.post('http://localhost:8000/api/auth/register/', {
@@ -54,16 +55,11 @@ export default {
         })
 
         if (response.data) {
-          // Afficher le code d'activation temporaire
-          const fullActivationCode = tempPassword
-          alert(`✅ Account created!\n\n🔑 ACTIVATION CODE:\n${fullActivationCode}\n\n⚠️ IMPORTANT:\n1. On the next page, enter this code in the PASSWORD field\n2. You will then setup your Passkey\n3. After that, you'll login with Passkey only!\n\n(This code is used only ONCE)`)
-          
-          // Copier dans le clipboard pour faciliter
-          navigator.clipboard.writeText(fullActivationCode).catch(() => {})
+          // Afficher le message de succès
+          alert(`✅ Account created successfully!\n\n🔐 Next steps:\n1. Enter your username: ${this.username}\n2. Setup your Passkey (fingerprint, Face ID, or security key)\n3. Future logins: Just use your Passkey!\n\n🔒 Passwordless = Maximum Security`)
           
           // Stocker pour référence
-          sessionStorage.setItem('activation_username', this.username)
-          sessionStorage.setItem('activation_code', tempPassword)
+          sessionStorage.setItem('new_user', this.username)
           
           const keycloakAuthUrl = `http://localhost:8080/realms/medical-realm/protocol/openid-connect/auth`
           const params = new URLSearchParams({
