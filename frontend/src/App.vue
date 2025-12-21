@@ -8,12 +8,13 @@ const router = useRouter();
 const isLoggedIn = ref(false);
 
 const checkAuth = () => {
-  isLoggedIn.value = !!localStorage.getItem('accessToken');
+  isLoggedIn.value = !!localStorage.getItem('access_token');
 };
 
 const handleLogout = () => {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('username');
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  sessionStorage.clear();
   isLoggedIn.value = false;
   router.push('/login');
 };

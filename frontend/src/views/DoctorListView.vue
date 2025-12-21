@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
-import axios from 'axios';
+import api from '@/services/api';
 import ConfirmModal from '../components/ConfirmModal.vue';
 
 const doctors = ref([]);
@@ -19,12 +19,8 @@ onMounted(async () => {
 
 const fetchDoctors = async () => {
     try {
-        const token = localStorage.getItem('accessToken');
-        
         // Get patient profile to know appointed doctors
-        const profileRes = await axios.get('http://127.0.0.1:8000/api/profile/', {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const profileRes = await api.get('/auth/me/');
         
         if (profileRes.data.user_type !== 'patient') {
             error.value = "This page is for patients only.";
@@ -36,9 +32,7 @@ const fetchDoctors = async () => {
         appointedDoctorIds.value = profileRes.data.profile.appointed_doctors.map(d => d.id);
         
         // Get all doctors
-        const doctorsRes = await axios.get('http://127.0.0.1:8000/api/doctors/', {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const doctorsRes = await api.get('/doctors/');
         
         allDoctors.value = doctorsRes.data;
         
@@ -63,11 +57,7 @@ const confirmRevoke = async () => {
     if (!doctorToRevoke.value) return;
     
     try {
-        const token = localStorage.getItem('accessToken');
-        await axios.delete(
-            `http://127.0.0.1:8000/api/patients/${currentPatientId.value}/remove-doctor/${doctorToRevoke.value.id}/`,
-            { headers: { 'Authorization': `Token ${token}` } }
-        );
+        await api.delete(`/patients/${currentPatientId.value}/remove-doctor/${doctorToRevoke.value.id}/`);
         
         // Refresh list
         await fetchDoctors();

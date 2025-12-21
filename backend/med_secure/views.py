@@ -499,7 +499,6 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = MedicalFile.objects.none()
         
         # Patient sees their own files
         if hasattr(user, 'patient_profile'):
@@ -510,10 +509,13 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
             queryset = MedicalFile.objects.filter(
                 patient__appointed_doctors=user.doctor_profile
             )
+        else:
+            # User has no profile - return empty queryset
+            queryset = MedicalFile.objects.none()
         
         # Filter by patient_id if provided (for doctors viewing specific patient)
         patient_id = self.request.query_params.get('patient_id')
-        if patient_id:
+        if patient_id and hasattr(user, 'doctor_profile'):
             queryset = queryset.filter(patient_id=patient_id)
         
         return queryset

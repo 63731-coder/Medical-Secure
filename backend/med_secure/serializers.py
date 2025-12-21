@@ -26,17 +26,18 @@ class PatientSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Patient
-        fields = ['id', 'user', 'date_of_birth', 'appointed_doctors']
+        fields = ['id', 'user', 'date_of_birth', 'keycloak_id', 'appointed_doctors']
 
 
 class MedicalFileSerializer(serializers.ModelSerializer):
     """Medical file with metadata"""
     uploaded_by = UserSerializer(read_only=True)
+    patient = PatientSerializer(read_only=True)
     
     class Meta:
         model = MedicalFile
-        fields = ['id', 'file', 'name', 'description', 'created_at', 'uploaded_by']
-        read_only_fields = ['uploaded_by', 'created_at']
+        fields = ['id', 'file', 'name', 'description', 'created_at', 'uploaded_by', 'patient']
+        read_only_fields = ['uploaded_by', 'created_at', 'patient']
 
 
 class RegisterSerializer(serializers.ModelSerializer):

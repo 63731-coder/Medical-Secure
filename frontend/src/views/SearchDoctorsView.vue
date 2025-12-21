@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
-import axios from 'axios';
+import api from '@/services/api';
 import StatusAlert from '../components/StatusAlert.vue';
 
 const query = ref('');
@@ -18,12 +18,8 @@ onMounted(async () => {
 
 const fetchDoctors = async () => {
     try {
-        const token = localStorage.getItem('accessToken');
-        
         // Get patient profile to know appointed doctors
-        const profileRes = await axios.get('http://127.0.0.1:8000/api/profile/', {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const profileRes = await api.get('/auth/me/');
         
         if (profileRes.data.user_type !== 'patient') {
             error.value = "This page is for patients only.";
@@ -35,9 +31,7 @@ const fetchDoctors = async () => {
         appointedDoctorIds.value = profileRes.data.profile.appointed_doctors.map(d => d.id);
         
         // Get all doctors
-        const doctorsRes = await axios.get('http://127.0.0.1:8000/api/doctors/', {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const doctorsRes = await api.get('/doctors/');
         
         allDoctors.value = doctorsRes.data;
         loading.value = false;
@@ -53,12 +47,7 @@ const addDoctor = async (doctorId) => {
         successMessage.value = '';
         error.value = '';
         
-        const token = localStorage.getItem('accessToken');
-        await axios.post(
-            `http://127.0.0.1:8000/api/patients/${currentPatientId.value}/add_doctor/`,
-            { doctor_id: doctorId },
-            { headers: { 'Authorization': `Token ${token}` } }
-        );
+        await api.post(`/patients/${currentPatientId.value}/add_doctor/`, { doctor_id: doctorId });
         
         // Add to appointed list
         appointedDoctorIds.value.push(doctorId);

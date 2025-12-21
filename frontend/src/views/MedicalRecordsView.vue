@@ -1,12 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import axios from 'axios';
-import { decryptData, encryptData } from '../utils/crypto';
+import api from '../services/api';
+import { decryptData, encryptData, deriveKeyFromUser } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
-import api from '../services/api';
 import { useNotifications } from '../composables/useNotifications';
+import CryptoJS from 'crypto-js';
 
 const route = useRoute();
 const router = useRouter();
@@ -44,17 +44,14 @@ const fetchPatient = async () => {
 // Fetch medical records from API
 const fetchRecords = async () => {
     try {
-        const token = localStorage.getItem('accessToken');
-        let url = 'http://127.0.0.1:8000/api/files/';
+        let url = '/files/';
         
         // Add patient filter if patient_id is provided
         if (patientId.value) {
             url += `?patient_id=${patientId.value}`;
         }
         
-        const response = await axios.get(url, {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const response = await api.get(url);
         
         records.value = response.data;
         loading.value = false;
@@ -67,19 +64,27 @@ const fetchRecords = async () => {
 
 const handleDownload = async (record) => {
     try {
-        const token = localStorage.getItem('accessToken');
-        
         // 1. Download encrypted blob from server
-        const response = await axios.get(`http://127.0.0.1:8000/api/files/${record.id}/download/`, {
-            headers: { 'Authorization': `Token ${token}` },
-            responseType: 'blob'
-        });
+        const response = await api.get(`/files/${record.id}/download/`, { responseType: 'blob' });
         
         // 2. Read blob as text
         const encryptedText = await response.data.text();
         
-        // 3. Decrypt using client-side key
-        const decryptedBase64 = decryptData(encryptedText);
+        // 3. Decrypt using PATIENT'S key (not current user's key)
+        // Generate the patient's encryption key from their credentials
+        const patientUsername = record.patient.user.username;
+        const patientKeycloakId = record.patient.keycloak_id;
+        
+        // Derive patient's key (same as deriveKeyFromUser but inline)
+        const seed = `${patientUsername}:${patientKeycloakId}:medical-secure`;
+        const patientKey = CryptoJS.PBKDF2(seed, 'keycloak-medical-salt', {
+            keySize: 256 / 32,
+            iterations: 100000  // NIST recommande minimum 100k iterations
+        }).toString();
+        
+        // Decrypt with patient's key
+        const bytes = CryptoJS.AES.decrypt(encryptedText, patientKey);
+        const decryptedBase64 = bytes.toString(CryptoJS.enc.Utf8);
         
         if (!decryptedBase64) {
             throw new Error("Decryption failed. Wrong key?");
@@ -87,13 +92,13 @@ const handleDownload = async (record) => {
         
         // 4. Convert Base64 back to binary
         const binaryString = atob(decryptedBase64);
-        const bytes = new Uint8Array(binaryString.length);
+        const bytesArray = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
+            bytesArray[i] = binaryString.charCodeAt(i);
         }
         
         // 5. Create download link for decrypted file
-        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const blob = new Blob([bytesArray], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -208,17 +213,9 @@ const saveEdit = async () => {
             });
         }
         
-        const token = localStorage.getItem('accessToken');
-        await axios.put(
-            `http://127.0.0.1:8000/api/files/${recordToEdit.value.id}/edit/`,
-            formData,
-            {
-                headers: {
-                    'Authorization': `Token ${token}`,
-                    'Content-Type': 'multipart/form-data'
-                }
-            }
-        );
+        await api.put(`/files/${recordToEdit.value.id}/edit/`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         
         notifySuccess('Medical record updated successfully');
         showEditModal.value = false;

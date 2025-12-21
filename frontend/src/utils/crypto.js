@@ -16,12 +16,26 @@ export const deriveKeyFromPassword = (password, salt = 'mon_sel_fixe_pour_le_pro
     // On utilise PBKDF2 qui est standard pour transformer un mot de passe en clé robuste
     const key = CryptoJS.PBKDF2(password, salt, {
         keySize: 256 / 32,
-        iterations: 1000
+        iterations: 100000  // NIST recommande minimum 100k iterations
     });
     SECRET_KEY = key.toString();
     // Store in sessionStorage (cleared when browser/tab closes)
     sessionStorage.setItem('encryptionKey', SECRET_KEY);
     console.log("Clé de chiffrement générée (en mémoire uniquement).");
+};
+
+// Generate deterministic encryption key from user identity (for Keycloak passwordless)
+export const deriveKeyFromUser = (username, keycloakId) => {
+    // Use username + keycloak_id as seed for deterministic key
+    // This allows the same user to decrypt their files across sessions
+    const seed = `${username}:${keycloakId}:medical-secure`;
+    const key = CryptoJS.PBKDF2(seed, 'keycloak-medical-salt', {
+        keySize: 256 / 32,
+        iterations: 100000  // NIST recommande minimum 100k iterations
+    });
+    SECRET_KEY = key.toString();
+    sessionStorage.setItem('encryptionKey', SECRET_KEY);
+    console.log("Clé de chiffrement déterministe générée pour", username);
 };
 
 // Clear encryption key on logout

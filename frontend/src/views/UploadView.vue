@@ -1,10 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
+import api from '../services/api';
 import { useRouter } from 'vue-router';
 import { encryptData } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
-import api from '../services/api';
 import { useNotifications } from '../composables/useNotifications';
 
 const router = useRouter();
@@ -88,13 +87,9 @@ const handleUpload = async () => {
 
             // 4. Send to Server
             status.value = { type: 'info', message: "Uploading encrypted data..." };
-            const token = localStorage.getItem('accessToken');
 
-            await axios.post('http://127.0.0.1:8000/api/files/', formData, {
-                headers: {
-                    'Authorization': `Token ${token}`,
-                    'Content-Type': 'multipart/form-data'
-                }
+            await api.post('/files/', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
             // Patient upload - immediate success
