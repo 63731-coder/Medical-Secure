@@ -5,6 +5,8 @@ crispy-bootstrap5==2025.6
 cycler==0.12.1
 Django==5.2.8
 python-decouple==3.8
+bleach==6.2.0
+python-magic-bin==0.4.14
 django-cors-headers==4.9.0
 django-crispy-forms==2.4
 djangorestframework==3.16.1
