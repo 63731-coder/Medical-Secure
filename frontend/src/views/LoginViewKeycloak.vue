@@ -10,47 +10,13 @@
           <span class="icon">🔐</span>
           Login with Keycloak
         </button>
-        
-        <div class="divider">
-          <span>or</span>
-        </div>
-        
-        <!-- Legacy Login (deprecated) -->
-        <details class="legacy-login">
-          <summary>Use legacy password login (deprecated)</summary>
-          
-          <form @submit.prevent="handleLegacyLogin" class="legacy-form">
-            <div v-if="errorMessage" class="error-message">
-              {{ errorMessage }}
-            </div>
-            
-            <div class="form-group">
-              <label for="username">Username</label>
-              <input 
-                type="text" 
-                id="username" 
-                v-model="username" 
-                required
-                placeholder="Enter username"
-              />
-            </div>
-            
-            <div class="form-group">
-              <label for="password">Password</label>
-              <input 
-                type="password" 
-                id="password" 
-                v-model="password" 
-                required
-                placeholder="Enter password"
-              />
-            </div>
-            
-            <button type="submit" class="btn-secondary">
-              Login (Legacy)
-            </button>
-          </form>
-        </details>
+      </div>
+
+      <div class="register-link">
+        <p>Don't have an account?</p>
+        <router-link to="/register" class="btn-register">
+          Create Account
+        </router-link>
       </div>
       
       <div class="info-box">
@@ -295,6 +261,37 @@ h1 {
   border-radius: 6px;
   margin-bottom: 1rem;
   font-size: 0.9rem;
+}
+
+.register-link {
+  text-align: center;
+  margin: 1.5rem 0;
+  padding: 1.5rem 0;
+  border-top: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+}
+
+.register-link p {
+  margin: 0 0 1rem 0;
+  color: #7f8c8d;
+  font-size: 0.95rem;
+}
+
+.btn-register {
+  display: inline-block;
+  padding: 0.75rem 2rem;
+  background: #27ae60;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.btn-register:hover {
+  background: #229954;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
 }
 
 .info-box {
