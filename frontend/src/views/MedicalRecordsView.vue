@@ -70,24 +70,12 @@ const handleDownload = async (record) => {
         // 2. Read blob as text
         const encryptedText = await response.data.text();
         
-        // 3. Decrypt using PATIENT'S key (not current user's key)
-        // Generate the patient's encryption key from their credentials
-        const patientUsername = record.patient.user.username;
-        const patientKeycloakId = record.patient.keycloak_id;
-        
-        // Derive patient's key (same as deriveKeyFromUser but inline)
-        const seed = `${patientUsername}:${patientKeycloakId}:medical-secure`;
-        const patientKey = CryptoJS.PBKDF2(seed, 'keycloak-medical-salt', {
-            keySize: 256 / 32,
-            iterations: 100000  // NIST recommande minimum 100k iterations
-        }).toString();
-        
-        // Decrypt with patient's key
-        const bytes = CryptoJS.AES.decrypt(encryptedText, patientKey);
-        const decryptedBase64 = bytes.toString(CryptoJS.enc.Utf8);
+        // 3. Decrypt using the encryption key from sessionStorage
+        // This is the same key used during upload
+        const decryptedBase64 = decryptData(encryptedText);
         
         if (!decryptedBase64) {
-            throw new Error("Decryption failed. Wrong key?");
+            throw new Error("Decryption failed. Encryption key not found in session.");
         }
         
         // 4. Convert Base64 back to binary
@@ -102,11 +90,13 @@ const handleDownload = async (record) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = record.name.replace('.enc', ''); // Remove .enc extension
+        
+        // Remove .enc extension properly
+        const cleanName = record.name.replace(/\.enc$/, '');
+        link.download = cleanName;
+        
         link.click();
         URL.revokeObjectURL(url);
-        
-        console.log(`✅ File ${record.name} decrypted and downloaded`);
     } catch (err) {
         console.error("Download/decryption error:", err);
         error.value = `Failed to decrypt ${record.name}`;
