@@ -101,6 +101,7 @@ class KeycloakAuth {
 
   /**
    * Logout user and revoke tokens
+   * Clears local storage and redirects to Keycloak logout to terminate SSO session
    */
   async logout() {
     if (this.refreshToken) {
@@ -115,10 +116,22 @@ class KeycloakAuth {
       }
     }
 
+    // Clear local tokens
     this.accessToken = null
     this.refreshToken = null
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
+    sessionStorage.clear()
+    
+    // Redirect to Keycloak logout to terminate SSO session
+    const config = await this.getConfig()
+    const logoutUrl = config.logout_url || `${config.auth_url.replace('/protocol/openid-connect/auth', '/protocol/openid-connect/logout')}`
+    const params = new URLSearchParams({
+      post_logout_redirect_uri: window.location.origin + '/login',
+      client_id: config.client_id
+    })
+    
+    window.location.href = `${logoutUrl}?${params.toString()}`
   }
 
   /**
