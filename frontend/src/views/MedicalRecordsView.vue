@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
-import { decryptData, encryptData, deriveKeyFromUser } from '../utils/crypto';
+import { decryptData, encryptData, deriveKeyFromUser, decryptSharedKey, decryptWithSharedKey } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import { useNotifications } from '../composables/useNotifications';
@@ -17,6 +17,7 @@ const error = ref("");
 const patient = ref(null);
 const patientId = ref(route.query.patient_id);
 const userType = ref(null);
+const currentDoctorId = ref(null);  // For doctors to decrypt shared keys
 const showDeleteModal = ref(false);
 const recordToDelete = ref(null);
 const showEditModal = ref(false);
@@ -64,18 +65,45 @@ const fetchRecords = async () => {
 
 const handleDownload = async (record) => {
     try {
+        let decryptedBase64;
+        
         // 1. Download encrypted blob from server
         const response = await api.get(`/files/${record.id}/download/`, { responseType: 'blob' });
         
         // 2. Read blob as text
         const encryptedText = await response.data.text();
         
-        // 3. Decrypt using the encryption key from sessionStorage
-        // This is the same key used during upload
-        const decryptedBase64 = decryptData(encryptedText);
+        // 3. Decrypt based on user type
+        if (userType.value === 'doctor' && patientId.value) {
+            // Doctor downloading patient file - use shared key
+            try {
+                // Get shared encryption key from API
+                const keyResponse = await api.get('/get-shared-key/', {
+                    params: { patient_id: patientId.value }
+                });
+                
+                const encryptedSharedKey = keyResponse.data.encrypted_key;
+                
+                // SIMPLIFIED: Decrypt using doctor ID only
+                const patientKey = decryptSharedKey(encryptedSharedKey, currentDoctorId.value);
+                
+                if (!patientKey) {
+                    throw new Error("Failed to decrypt shared encryption key");
+                }
+                
+                // Decrypt file content using patient's key
+                decryptedBase64 = decryptWithSharedKey(encryptedText, patientKey);
+            } catch (keyError) {
+                console.error("Shared key error:", keyError);
+                throw new Error("Cannot access patient files. Key sharing may not be set up.");
+            }
+        } else {
+            // Patient downloading their own file - use their key
+            decryptedBase64 = decryptData(encryptedText);
+        }
         
         if (!decryptedBase64) {
-            throw new Error("Decryption failed. Encryption key not found in session.");
+            throw new Error("Decryption failed. Encryption key not found or invalid.");
         }
         
         // 4. Convert Base64 back to binary
@@ -99,7 +127,7 @@ const handleDownload = async (record) => {
         URL.revokeObjectURL(url);
     } catch (err) {
         console.error("Download/decryption error:", err);
-        error.value = `Failed to decrypt ${record.name}`;
+        error.value = `Failed to decrypt ${record.name}: ${err.message}`;
     }
 };
 
@@ -233,6 +261,11 @@ onMounted(async () => {
     try {
         const profileRes = await api.getProfile();
         userType.value = profileRes.data.user_type;
+        
+        // Get doctor ID if user is a doctor
+        if (userType.value === 'doctor' && profileRes.data.profile) {
+            currentDoctorId.value = profileRes.data.profile.id;
+        }
     } catch (e) {
         console.error('Failed to get user profile:', e);
     }

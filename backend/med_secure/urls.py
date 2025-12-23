@@ -4,7 +4,7 @@ from .views import (
     DoctorListView, DoctorDetailView,
     PatientViewSet, MedicalFileViewSet,
     DoctorPatientRequestViewSet, PatientListView,
-    FileActionRequestViewSet
+    FileActionRequestViewSet, ShareEncryptionKeyView, GetSharedKeyView
 )
 from .keycloak_views import (
     KeycloakRegisterView,
@@ -38,6 +38,10 @@ urlpatterns = [
     
     # Patient endpoints
     path('all-patients/', PatientListView.as_view(), name='all-patients'),
+    
+    # Encryption key sharing
+    path('share-key/', ShareEncryptionKeyView.as_view(), name='share-key'),
+    path('get-shared-key/', GetSharedKeyView.as_view(), name='get-shared-key'),
 
     # Router URLs (patients, files, requests, file-requests)
     path("", include(router.urls)),

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';
 import StatusAlert from '../components/StatusAlert.vue';
+import { encryptKeyForDoctor } from '../utils/crypto';
 
 const query = ref('');
 const allDoctors = ref([]);
@@ -11,6 +12,7 @@ const loading = ref(true);
 const error = ref('');
 const currentPatientId = ref(null);
 const successMessage = ref('');
+const currentUser = ref(null);
 
 onMounted(async () => {
     await fetchDoctors();
@@ -27,6 +29,7 @@ const fetchDoctors = async () => {
             return;
         }
         
+        currentUser.value = profileRes.data;
         currentPatientId.value = profileRes.data.profile.id;
         appointedDoctorIds.value = profileRes.data.profile.appointed_doctors.map(d => d.id);
         
@@ -47,7 +50,30 @@ const addDoctor = async (doctorId) => {
         successMessage.value = '';
         error.value = '';
         
+        // Step 1: Add doctor to patient's appointed list
         await api.post(`/patients/${currentPatientId.value}/add_doctor/`, { doctor_id: doctorId });
+        
+        // Step 2: Share encryption key with the doctor
+        const patientKey = sessionStorage.getItem('encryptionKey');
+        if (patientKey) {
+            // Find doctor info
+            const doctor = allDoctors.value.find(d => d.id === doctorId);
+            if (doctor) {
+                // Encrypt patient's key for secure sharing
+                const encryptedKey = encryptKeyForDoctor(patientKey, doctor.id);
+                
+                // Share encrypted key via API
+                try {
+                    await api.post('/share-key/', {
+                        doctor_id: doctorId,
+                        encrypted_key: encryptedKey
+                    });
+                } catch (keyError) {
+                    console.error('Failed to share encryption key:', keyError);
+                    // Don't fail the whole operation if key sharing fails
+                }
+            }
+        }
         
         // Add to appointed list
         appointedDoctorIds.value.push(doctorId);

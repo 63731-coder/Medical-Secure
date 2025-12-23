@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import api from '../services/api';
 import { useRouter } from 'vue-router';
-import { encryptData } from '../utils/crypto';
+import { encryptData, encryptKeyForDoctor } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import { useNotifications } from '../composables/useNotifications';
 
@@ -17,6 +17,7 @@ const status = ref({ type: 'info', message: '' });
 const userType = ref(null);
 const patients = ref([]);
 const selectedPatient = ref(null);
+const appointedDoctors = ref([]);
 
 onMounted(async () => {
     try {
@@ -27,6 +28,11 @@ onMounted(async () => {
         if (userType.value === 'doctor') {
             const patientsRes = await api.getPatients();
             patients.value = patientsRes.data;
+        }
+        
+        // If patient, get appointed doctors list for key sharing
+        if (userType.value === 'patient') {
+            appointedDoctors.value = profileRes.data.profile.appointed_doctors || [];
         }
     } catch (e) {
         console.error('Failed to fetch profile:', e);
@@ -119,6 +125,24 @@ const handleUpload = async () => {
             if (userType.value === 'patient') {
                 status.value = { type: 'success', message: "File encrypted and uploaded successfully!" };
                 notifySuccess('File uploaded successfully');
+                
+                // Share encryption key with all appointed doctors
+                const patientKey = sessionStorage.getItem('encryptionKey');
+                if (patientKey && appointedDoctors.value.length > 0) {
+                    for (const doctor of appointedDoctors.value) {
+                        try {
+                            // Encrypt and share key with each appointed doctor
+                            const encryptedKey = encryptKeyForDoctor(patientKey, doctor.id);
+                            
+                            await api.post('/share-key/', {
+                                doctor_id: doctor.id,
+                                encrypted_key: encryptedKey
+                            });
+                        } catch (keyError) {
+                            console.error(`Failed to share key with doctor ${doctor.id}:`, keyError);
+                        }
+                    }
+                }
             }
             
             title.value = "";

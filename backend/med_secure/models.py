@@ -49,6 +49,26 @@ class Patient(models.Model):
         ]
 
 
+class SharedEncryptionKey(models.Model):
+    """
+    Stores patient encryption keys shared with doctors.
+    The patient's encryption key is encrypted with the doctor's key before storage.
+    """
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='shared_keys')
+    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name='received_keys')
+    encrypted_key = models.TextField(help_text="Patient's encryption key encrypted with doctor's key")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['patient', 'doctor']
+        indexes = [
+            models.Index(fields=['patient', 'doctor']),
+        ]
+    
+    def __str__(self):
+        return f"Key: {self.patient} → Dr. {self.doctor.user.last_name}"
+
+
 class DoctorPatientRequest(models.Model):
     """
     Request for a doctor-patient relationship.
