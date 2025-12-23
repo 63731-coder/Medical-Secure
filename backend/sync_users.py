@@ -103,28 +103,93 @@ def sync_patients(admin_token):
     
     return updated_count
 
+def get_user_roles(user_id, admin_token):
+    """Récupère les rôles d'un utilisateur depuis Keycloak"""
+    roles_url = f"{settings.KEYCLOAK_SERVER_URL}/admin/realms/{settings.KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm"
+    headers = {'Authorization': f'Bearer {admin_token}'}
+    
+    try:
+        response = requests.get(roles_url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            roles = response.json()
+            return [role['name'] for role in roles]
+        return []
+    except Exception as e:
+        return []
+
 def sync_doctors(admin_token):
-    """Synchronise tous les docteurs"""
-    doctors = Doctor.objects.select_related('user').all()
+    """Synchronise tous les docteurs depuis Keycloak vers Django"""
+    # Récupérer tous les docteurs depuis Keycloak
+    keycloak_url = f"{settings.KEYCLOAK_SERVER_URL}/admin/realms/{settings.KEYCLOAK_REALM}/users"
+    headers = {'Authorization': f'Bearer {admin_token}'}
+    
+    try:
+        response = requests.get(keycloak_url, headers=headers)
+        if response.status_code != 200:
+            print(f"  ⚠️  Erreur lors de la récupération des utilisateurs Keycloak")
+            return 0
+        
+        all_users = response.json()
+    except Exception as e:
+        print(f"  ⚠️  Erreur: {e}")
+        return 0
+    
+    # Filtrer les docteurs (ceux avec le rôle 'doctor')
+    keycloak_doctors = []
+    for user in all_users:
+        user_roles = get_user_roles(user['id'], admin_token)
+        if 'doctor' in user_roles:
+            keycloak_doctors.append(user)
+    
+    print(f"\n🩺 Synchronisation de {len(keycloak_doctors)} docteur(s) depuis Keycloak...")
+    
     updated_count = 0
+    created_count = 0
     
-    print(f"\n🩺 Synchronisation de {doctors.count()} docteur(s)...")
-    
-    for doctor in doctors:
-        keycloak_data = fetch_keycloak_user(doctor.keycloak_id, admin_token)
+    for kc_doctor in keycloak_doctors:
+        keycloak_id = kc_doctor.get('id')
+        username = kc_doctor.get('username')
         
-        if keycloak_data is None:
-            print(f"  ⚠️  Docteur {doctor.user.username} n'existe plus dans Keycloak")
-            continue
-        
-        if update_django_user(doctor.user, keycloak_data):
-            name = f"Dr. {keycloak_data.get('firstName', '')} {keycloak_data.get('lastName', '')}".strip()
-            print(f"  ✓ Docteur mis à jour: {name or doctor.user.username}")
-            updated_count += 1
-        else:
-            print(f"  • Docteur déjà à jour: {doctor.user.username}")
+        # Vérifier si le docteur existe déjà dans Django
+        try:
+            doctor = Doctor.objects.get(keycloak_id=keycloak_id)
+            # Mettre à jour
+            if update_django_user(doctor.user, kc_doctor):
+                name = f"Dr. {kc_doctor.get('firstName', '')} {kc_doctor.get('lastName', '')}".strip()
+                print(f"  ✓ Docteur mis à jour: {name or username}")
+                updated_count += 1
+            else:
+                print(f"  • Docteur déjà à jour: {username}")
+        except Doctor.DoesNotExist:
+            # Créer le nouveau docteur
+            try:
+                from django.contrib.auth.models import User
+                
+                # Créer l'utilisateur Django
+                django_user = User.objects.create_user(
+                    username=username,
+                    email=kc_doctor.get('email', ''),
+                    first_name=kc_doctor.get('firstName', ''),
+                    last_name=kc_doctor.get('lastName', '')
+                )
+                django_user.set_unusable_password()  # Géré par Keycloak
+                django_user.save()
+                
+                # Créer le profil Doctor
+                Doctor.objects.create(
+                    user=django_user,
+                    keycloak_id=keycloak_id,
+                    organisation='Unknown'  # À définir manuellement
+                )
+                
+                name = f"Dr. {kc_doctor.get('firstName', '')} {kc_doctor.get('lastName', '')}".strip()
+                print(f"  ✨ Nouveau docteur créé: {name or username}")
+                created_count += 1
+            except Exception as e:
+                print(f"  ⚠️  Erreur lors de la création de {username}: {e}")
     
-    return updated_count
+    print(f"\n  📊 Total: {updated_count} mis à jour, {created_count} créés")
+    return updated_count + created_count
 
 def main():
     print("=" * 60)
