@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
-import { decryptData, encryptData, deriveKeyFromUser, decryptSharedKey, decryptWithSharedKey } from '../utils/crypto';
+import { decryptData, encryptData, deriveKeyFromUser, decryptSharedKey, decryptWithSharedKey, encryptWithSharedKey } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import { useNotifications } from '../composables/useNotifications';
@@ -215,9 +215,41 @@ const saveEdit = async () => {
                         uint8Array.forEach(byte => binary += String.fromCharCode(byte));
                         const base64Content = btoa(binary);
                         
-                        const encryptedContent = encryptData(base64Content);
-                        if (!encryptedContent) {
-                            throw new Error('Encryption failed');
+                        let encryptedContent;
+                        
+                        // Check if user is a doctor - must use patient's key
+                        if (userType.value === 'doctor') {
+                            try {
+                                // Get patient's shared encryption key
+                                const keyResponse = await api.get('/get-shared-key/', {
+                                    params: { patient_id: patientId.value }
+                                });
+                                
+                                const encryptedSharedKey = keyResponse.data.encrypted_key;
+                                
+                                // Decrypt patient's key using doctor's ID
+                                const patientKey = decryptSharedKey(encryptedSharedKey, currentDoctorId.value);
+                                
+                                if (!patientKey) {
+                                    throw new Error("Failed to decrypt patient's encryption key");
+                                }
+                                
+                                // Encrypt file content with patient's key
+                                encryptedContent = encryptWithSharedKey(base64Content, patientKey);
+                                
+                                if (!encryptedContent) {
+                                    throw new Error("Failed to encrypt file with patient's key");
+                                }
+                            } catch (keyError) {
+                                console.error("Key retrieval error:", keyError);
+                                throw new Error("Cannot encrypt file for patient. Ensure you have access to their key.");
+                            }
+                        } else {
+                            // Patient editing their own file - use their own key
+                            encryptedContent = encryptData(base64Content);
+                            if (!encryptedContent) {
+                                throw new Error('Encryption failed');
+                            }
                         }
                         
                         const encryptedBlob = new Blob([encryptedContent], { type: 'application/octet-stream' });
@@ -231,15 +263,22 @@ const saveEdit = async () => {
             });
         }
         
-        await api.put(`/files/${recordToEdit.value.id}/edit/`, formData, {
+        const response = await api.put(`/files/${recordToEdit.value.id}/edit/`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
         
-        notifySuccess('Medical record updated successfully');
+        // Check if it's a pending request (for doctors)
+        if (response.data?.pending) {
+            notifySuccess('Edit request sent to patient for approval');
+        } else {
+            // Direct update (for patients)
+            notifySuccess('Medical record updated successfully');
+            await fetchRecords();
+        }
+        
         showEditModal.value = false;
         recordToEdit.value = null;
         editFile.value = null;
-        await fetchRecords();
         
     } catch (err) {
         console.error('Edit error:', err);
@@ -335,7 +374,7 @@ onMounted(async () => {
                                 </svg>
                                 Download
                             </button>
-                            <button v-if="userType === 'patient'" @click="openEditModal(file)" class="text-green-600 hover:text-green-900 font-medium inline-flex items-center gap-1">
+                            <button @click="openEditModal(file)" class="text-green-600 hover:text-green-900 font-medium inline-flex items-center gap-1">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
@@ -374,7 +413,10 @@ onMounted(async () => {
             <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @click.self="cancelEdit">
                 <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-200">
-                        <h3 class="text-lg font-semibold text-gray-900">Edit Medical Record</h3>
+                        <h3 class="text-lg font-semibold text-gray-900">
+                            {{ userType === 'doctor' ? 'Request to Edit Medical Record' : 'Edit Medical Record' }}
+                        </h3>
+                        <p v-if="userType === 'doctor'" class="text-sm text-blue-600 mt-1">⚠️ Patient approval required for changes</p>
                     </div>
                     
                     <div class="px-6 py-4 space-y-4">
@@ -407,7 +449,7 @@ onMounted(async () => {
                         </button>
                         <button @click="saveEdit" :disabled="editLoading"
                             class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50">
-                            {{ editLoading ? 'Saving...' : 'Save Changes' }}
+                            {{ editLoading ? 'Processing...' : (userType === 'doctor' ? 'Send Request' : 'Save Changes') }}
                         </button>
                     </div>
                 </div>

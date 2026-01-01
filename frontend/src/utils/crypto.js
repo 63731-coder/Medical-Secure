@@ -140,3 +140,22 @@ export const decryptWithSharedKey = (cipherText, sharedKey) => {
     }
 };
 
+/**
+ * Encrypt data using a shared key (for doctors uploading files for patients)
+ * @param {string} data - The data to encrypt
+ * @param {string} sharedKey - The patient's decrypted encryption key
+ * @returns {string} - Encrypted data
+ */
+export const encryptWithSharedKey = (data, sharedKey) => {
+    if (!sharedKey) {
+        console.error("No shared key provided for encryption");
+        return null;
+    }
+    try {
+        return CryptoJS.AES.encrypt(data, sharedKey).toString();
+    } catch (e) {
+        console.error("Error encrypting with shared key:", e);
+        return null;
+    }
+};
+

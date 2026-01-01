@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import api from '../services/api';
 import { useRouter } from 'vue-router';
-import { encryptData, encryptKeyForDoctor } from '../utils/crypto';
+import { encryptData, encryptKeyForDoctor, decryptSharedKey, encryptWithSharedKey } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import { useNotifications } from '../composables/useNotifications';
 
@@ -18,14 +18,16 @@ const userType = ref(null);
 const patients = ref([]);
 const selectedPatient = ref(null);
 const appointedDoctors = ref([]);
+const currentDoctorId = ref(null);
 
 onMounted(async () => {
     try {
         const profileRes = await api.getProfile();
         userType.value = profileRes.data.user_type;
         
-        // If doctor, fetch patients list
+        // If doctor, fetch patients list and store doctor ID
         if (userType.value === 'doctor') {
+            currentDoctorId.value = profileRes.data.profile.id;
             const patientsRes = await api.getPatients();
             patients.value = patientsRes.data;
         }
@@ -91,12 +93,44 @@ const handleUpload = async () => {
             uint8Array.forEach(byte => binary += String.fromCharCode(byte));
             const base64Content = btoa(binary);
 
+            let encryptedContent;
+            
             // 2. Encrypt Content (Client-Side)
             // The server NEVER sees the rawContent
-            const encryptedContent = encryptData(base64Content);
-
-            if (!encryptedContent) {
-                throw new Error("Encryption failed. Are you logged in?");
+            if (userType.value === 'doctor') {
+                // Doctor encrypting for patient - need to use patient's key
+                try {
+                    // Get patient's shared encryption key
+                    const keyResponse = await api.get('/get-shared-key/', {
+                        params: { patient_id: selectedPatient.value }
+                    });
+                    
+                    const encryptedSharedKey = keyResponse.data.encrypted_key;
+                    
+                    // Decrypt patient's key using doctor's ID
+                    const patientKey = decryptSharedKey(encryptedSharedKey, currentDoctorId.value);
+                    
+                    if (!patientKey) {
+                        throw new Error("Failed to decrypt patient's encryption key");
+                    }
+                    
+                    // Encrypt file content with patient's key
+                    encryptedContent = encryptWithSharedKey(base64Content, patientKey);
+                    
+                    if (!encryptedContent) {
+                        throw new Error("Failed to encrypt file with patient's key");
+                    }
+                } catch (keyError) {
+                    console.error("Key retrieval error:", keyError);
+                    throw new Error("Cannot encrypt file for patient. Ensure you have been appointed as their doctor.");
+                }
+            } else {
+                // Patient encrypting their own file - use their own key
+                encryptedContent = encryptData(base64Content);
+                
+                if (!encryptedContent) {
+                    throw new Error("Encryption failed. Are you logged in?");
+                }
             }
 
             // 3. Prepare Form Data (Django expects a file)
