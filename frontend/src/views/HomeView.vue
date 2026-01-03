@@ -1,23 +1,39 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import api from '../services/api';
 
+const router = useRouter();
+
 // User state
-const userName = ref("User"); 
+const isAuthenticated = ref(false);
+const userName = ref(null); 
 const userType = ref(null);
 const pendingRequestsCount = ref(0);
 const pendingFileActionsCount = ref(0);
 
 onMounted(async () => {
-  // Get user profile
-  const storedUser = localStorage.getItem('username');
-  if (storedUser) userName.value = storedUser;
+  // Check if user is authenticated
+  const token = localStorage.getItem('access_token');
+  if (!token) {
+    isAuthenticated.value = false;
+    router.push('/login');
+    return;
+  }
   
   try {
     const profileRes = await api.getProfile();
+    isAuthenticated.value = true;
     userType.value = profileRes.data.user_type;
-    userName.value = profileRes.data.first_name || storedUser;
+    
+    // Use first name if available, otherwise username (but not keycloak ID)
+    if (profileRes.data.first_name && profileRes.data.first_name !== 'N/A') {
+      userName.value = profileRes.data.first_name;
+    } else if (profileRes.data.username && !profileRes.data.username.includes('-')) {
+      userName.value = profileRes.data.username;
+    } else {
+      userName.value = 'User'; // Fallback
+    }
     
     // If patient, check for pending requests
     if (userType.value === 'patient') {
@@ -30,16 +46,18 @@ onMounted(async () => {
     }
   } catch (e) {
     console.error('Failed to load profile:', e);
+    isAuthenticated.value = false;
+    router.push('/login');
   }
 });
 </script>
 
 <template>
-  <div>
+  <div v-if="isAuthenticated">
     <div class="flex flex-col md:flex-row justify-between items-center mb-10">
       <div>
         <h1 class="text-3xl font-extrabold text-gray-900">
-          Welcome back, <span class="text-blue-600">{{ userName }}</span>
+          Welcome
         </h1>
         <p class="mt-2 text-sm text-gray-600">
           Secure Medical Portal Dashboard

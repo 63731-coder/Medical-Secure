@@ -20,14 +20,6 @@ const fetchData = async () => {
     try {
         loading.value = true;
         
-        // Get profile to confirm user is a doctor
-        const profileRes = await api.getProfile();
-        if (profileRes.data.user_type !== 'doctor') {
-            error.value = "This page is for doctors only.";
-            loading.value = false;
-            return;
-        }
-        
         // Get doctor's patients
         const patientsRes = await api.getPatients();
         patients.value = patientsRes.data;

@@ -5,11 +5,11 @@ from rest_framework.authtoken.models import Token
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from .models import Doctor, Patient, MedicalFile, DoctorPatientRequest, FileActionRequest
+from .models import Doctor, Patient, MedicalFile, DoctorPatientRequest, FileActionRequest, SharedEncryptionKey
 from .serializers import (
     DoctorSerializer, PatientSerializer, MedicalFileSerializer, 
     RegisterSerializer, UserSerializer, DoctorPatientRequestSerializer,
-    FileActionRequestSerializer
+    FileActionRequestSerializer, SharedEncryptionKeySerializer
 )
 
 
@@ -499,7 +499,6 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = MedicalFile.objects.none()
         
         # Patient sees their own files
         if hasattr(user, 'patient_profile'):
@@ -510,10 +509,13 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
             queryset = MedicalFile.objects.filter(
                 patient__appointed_doctors=user.doctor_profile
             )
+        else:
+            # User has no profile - return empty queryset
+            queryset = MedicalFile.objects.none()
         
         # Filter by patient_id if provided (for doctors viewing specific patient)
         patient_id = self.request.query_params.get('patient_id')
-        if patient_id:
+        if patient_id and hasattr(user, 'doctor_profile'):
             queryset = queryset.filter(patient_id=patient_id)
         
         return queryset
@@ -812,3 +814,101 @@ class FileActionRequestViewSet(viewsets.ModelViewSet):
             'message': 'Request rejected',
             'request': FileActionRequestSerializer(action_request).data
         })
+
+
+# ===========================
+# SHARED ENCRYPTION KEY VIEWS
+# ===========================
+
+class ShareEncryptionKeyView(APIView):
+    """
+    Patient shares their encryption key with a doctor
+    POST /api/share-key/
+    Body: {
+        "doctor_id": 1,
+        "encrypted_key": "base64_encrypted_key_string"
+    }
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        # Only patients can share keys
+        if not hasattr(request.user, 'patient_profile'):
+            return Response({'error': 'Only patients can share encryption keys'}, 
+                          status=status.HTTP_403_FORBIDDEN)
+        
+        patient = request.user.patient_profile
+        doctor_id = request.data.get('doctor_id')
+        encrypted_key = request.data.get('encrypted_key')
+        
+        if not doctor_id or not encrypted_key:
+            return Response({'error': 'doctor_id and encrypted_key are required'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            doctor = Doctor.objects.get(id=doctor_id)
+        except Doctor.DoesNotExist:
+            return Response({'error': 'Doctor not found'}, 
+                          status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if doctor is appointed
+        if doctor not in patient.appointed_doctors.all():
+            return Response({'error': 'Doctor is not appointed to this patient'}, 
+                          status=status.HTTP_403_FORBIDDEN)
+        
+        # Create or update shared key
+        shared_key, created = SharedEncryptionKey.objects.update_or_create(
+            patient=patient,
+            doctor=doctor,
+            defaults={'encrypted_key': encrypted_key}
+        )
+        
+        return Response({
+            'message': 'Encryption key shared successfully',
+            'created': created
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class GetSharedKeyView(APIView):
+    """
+    Doctor retrieves shared encryption key from a patient
+    GET /api/get-shared-key/?patient_id=1
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        # Only doctors can retrieve shared keys
+        if not hasattr(request.user, 'doctor_profile'):
+            return Response({'error': 'Only doctors can retrieve shared keys'}, 
+                          status=status.HTTP_403_FORBIDDEN)
+        
+        doctor = request.user.doctor_profile
+        patient_id = request.query_params.get('patient_id')
+        
+        if not patient_id:
+            return Response({'error': 'patient_id is required'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            patient = Patient.objects.get(id=patient_id)
+        except Patient.DoesNotExist:
+            return Response({'error': 'Patient not found'}, 
+                          status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if doctor is appointed to this patient
+        if doctor not in patient.appointed_doctors.all():
+            return Response({'error': 'You are not appointed to this patient'}, 
+                          status=status.HTTP_403_FORBIDDEN)
+        
+        # Get shared key
+        try:
+            shared_key = SharedEncryptionKey.objects.get(patient=patient, doctor=doctor)
+            return Response({
+                'encrypted_key': shared_key.encrypted_key,
+                'patient_id': patient.id,
+                'patient_username': patient.user.username
+            })
+        except SharedEncryptionKey.DoesNotExist:
+            return Response({'error': 'No shared key found for this patient'}, 
+                          status=status.HTTP_404_NOT_FOUND)
+

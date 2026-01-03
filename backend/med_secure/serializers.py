@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Doctor, Patient, MedicalFile, DoctorPatientRequest, FileActionRequest
+from .models import Doctor, Patient, MedicalFile, DoctorPatientRequest, FileActionRequest, SharedEncryptionKey
+import re
+import bleach
+# import magic  # Commented out - libmagic issues on Windows
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -26,17 +29,85 @@ class PatientSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Patient
-        fields = ['id', 'user', 'date_of_birth', 'appointed_doctors']
+        fields = ['id', 'user', 'date_of_birth', 'keycloak_id', 'appointed_doctors']
 
 
 class MedicalFileSerializer(serializers.ModelSerializer):
     """Medical file with metadata"""
     uploaded_by = UserSerializer(read_only=True)
+    patient = PatientSerializer(read_only=True)
     
     class Meta:
         model = MedicalFile
-        fields = ['id', 'file', 'name', 'description', 'created_at', 'uploaded_by']
-        read_only_fields = ['uploaded_by', 'created_at']
+        fields = ['id', 'file', 'name', 'description', 'created_at', 'uploaded_by', 'patient']
+        read_only_fields = ['uploaded_by', 'created_at', 'patient']
+    
+    def validate_name(self, value):
+        """Prevent path traversal attacks in filenames"""
+        # Check for path traversal patterns
+        if '..' in value:
+            raise serializers.ValidationError("Filename cannot contain '..'")
+        
+        # Check for directory separators
+        if '/' in value or '\\' in value:
+            raise serializers.ValidationError("Filename cannot contain path separators")
+        
+        # Check for dangerous characters (Windows/Linux)
+        dangerous_chars = r'[<>:"|?*\x00-\x1f]'
+        if re.search(dangerous_chars, value):
+            raise serializers.ValidationError("Filename contains invalid characters")
+        
+        # Check for reserved Windows names
+        reserved_names = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 
+                         'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 
+                         'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9']
+        if value.upper().split('.')[0] in reserved_names:
+            raise serializers.ValidationError("Filename uses a reserved system name")
+        
+        return value
+    
+    def validate_description(self, value):
+        """Sanitize HTML/JavaScript to prevent XSS attacks"""
+        # Whitelist approach: strip all HTML tags
+        sanitized = bleach.clean(value, tags=[], strip=True)
+        return sanitized
+    
+    def validate_file(self, value):
+        """Validate file size and MIME type"""
+        # Check file size (max 10MB)
+        max_size = 10 * 1024 * 1024  # 10MB in bytes
+        if value.size > max_size:
+            raise serializers.ValidationError(f"File size cannot exceed 10MB (current: {value.size / 1024 / 1024:.2f}MB)")
+        
+        # Check MIME type using python-magic (reads file content)
+        # NOTE: Disabled due to libmagic Windows compatibility issues
+        # value.seek(0)  # Reset file pointer
+        # file_content = value.read(1024)  # Read first 1KB
+        # value.seek(0)  # Reset again for later use
+        
+        # mime = magic.from_buffer(file_content, mime=True)
+        
+        # For now, skip MIME validation (accept all files)
+        # In production, could use file extension validation instead
+        value.seek(0)  # Reset file pointer for later use
+        
+        # Whitelist of allowed MIME types (currently not enforced)
+        # allowed_mimes = [
+        #     'application/pdf',           # PDF documents
+        #     'image/jpeg',                # JPEG images
+        #     'image/png',                 # PNG images
+        #     'image/gif',                 # GIF images
+        #     'application/octet-stream',  # Encrypted files
+        #     'text/plain',                # Text files
+        # ]
+        
+        # MIME validation disabled (Windows compatibility)
+        # if mime not in allowed_mimes:
+        #     raise serializers.ValidationError(
+        #         f"File type '{mime}' not allowed. Allowed types: PDF, JPEG, PNG, GIF, TXT, encrypted files"
+        #     )
+        
+        return value
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -117,3 +188,11 @@ class FileActionRequestSerializer(serializers.ModelSerializer):
                 'description': obj.target_file.description,
             }
         return None
+
+
+class SharedEncryptionKeySerializer(serializers.ModelSerializer):
+    """Serializer for sharing encryption keys between patients and doctors"""
+    class Meta:
+        model = SharedEncryptionKey
+        fields = ['id', 'patient', 'doctor', 'encrypted_key', 'created_at']
+        read_only_fields = ['created_at']

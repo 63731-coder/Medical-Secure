@@ -8,14 +8,24 @@ const router = useRouter();
 const isLoggedIn = ref(false);
 
 const checkAuth = () => {
-  isLoggedIn.value = !!localStorage.getItem('accessToken');
+  isLoggedIn.value = !!localStorage.getItem('access_token');
 };
 
-const handleLogout = () => {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('username');
-  isLoggedIn.value = false;
-  router.push('/login');
+const handleLogout = async () => {
+  try {
+    // Import keycloakAuth dynamically to avoid circular dependencies
+    const keycloakAuth = (await import('./services/keycloakAuth')).default
+    await keycloakAuth.logout()
+    // keycloakAuth.logout() will redirect to Keycloak logout, so no need to manually navigate
+  } catch (error) {
+    console.error('Logout error:', error)
+    // Fallback: clear local storage and redirect
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    sessionStorage.clear();
+    isLoggedIn.value = false;
+    router.push('/login');
+  }
 };
 
 onMounted(() => {

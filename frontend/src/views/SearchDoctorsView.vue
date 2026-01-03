@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
-import axios from 'axios';
+import api from '@/services/api';
 import StatusAlert from '../components/StatusAlert.vue';
+import { encryptKeyForDoctor } from '../utils/crypto';
 
 const query = ref('');
 const allDoctors = ref([]);
@@ -11,6 +12,7 @@ const loading = ref(true);
 const error = ref('');
 const currentPatientId = ref(null);
 const successMessage = ref('');
+const currentUser = ref(null);
 
 onMounted(async () => {
     await fetchDoctors();
@@ -18,12 +20,8 @@ onMounted(async () => {
 
 const fetchDoctors = async () => {
     try {
-        const token = localStorage.getItem('accessToken');
-        
         // Get patient profile to know appointed doctors
-        const profileRes = await axios.get('http://127.0.0.1:8000/api/profile/', {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const profileRes = await api.get('/auth/me/');
         
         if (profileRes.data.user_type !== 'patient') {
             error.value = "This page is for patients only.";
@@ -31,13 +29,12 @@ const fetchDoctors = async () => {
             return;
         }
         
+        currentUser.value = profileRes.data;
         currentPatientId.value = profileRes.data.profile.id;
         appointedDoctorIds.value = profileRes.data.profile.appointed_doctors.map(d => d.id);
         
         // Get all doctors
-        const doctorsRes = await axios.get('http://127.0.0.1:8000/api/doctors/', {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const doctorsRes = await api.get('/doctors/');
         
         allDoctors.value = doctorsRes.data;
         loading.value = false;
@@ -53,12 +50,30 @@ const addDoctor = async (doctorId) => {
         successMessage.value = '';
         error.value = '';
         
-        const token = localStorage.getItem('accessToken');
-        await axios.post(
-            `http://127.0.0.1:8000/api/patients/${currentPatientId.value}/add_doctor/`,
-            { doctor_id: doctorId },
-            { headers: { 'Authorization': `Token ${token}` } }
-        );
+        // Step 1: Add doctor to patient's appointed list
+        await api.post(`/patients/${currentPatientId.value}/add_doctor/`, { doctor_id: doctorId });
+        
+        // Step 2: Share encryption key with the doctor
+        const patientKey = sessionStorage.getItem('encryptionKey');
+        if (patientKey) {
+            // Find doctor info
+            const doctor = allDoctors.value.find(d => d.id === doctorId);
+            if (doctor) {
+                // Encrypt patient's key for secure sharing
+                const encryptedKey = encryptKeyForDoctor(patientKey, doctor.id);
+                
+                // Share encrypted key via API
+                try {
+                    await api.post('/share-key/', {
+                        doctor_id: doctorId,
+                        encrypted_key: encryptedKey
+                    });
+                } catch (keyError) {
+                    console.error('Failed to share encryption key:', keyError);
+                    // Don't fail the whole operation if key sharing fails
+                }
+            }
+        }
         
         // Add to appointed list
         appointedDoctorIds.value.push(doctorId);

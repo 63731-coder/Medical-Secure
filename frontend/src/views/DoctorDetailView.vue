@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import axios from 'axios';
+import api from '@/services/api';
 import ConfirmModal from '../components/ConfirmModal.vue';
 
 const route = useRoute();
@@ -21,12 +21,8 @@ onMounted(async () => {
 
 const fetchDoctor = async () => {
     try {
-        const token = localStorage.getItem('accessToken');
-        
         // Get patient profile
-        const profileRes = await axios.get('http://127.0.0.1:8000/api/profile/', {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const profileRes = await api.get('/auth/me/');
         
         currentPatientId.value = profileRes.data.profile.id;
         
@@ -35,9 +31,7 @@ const fetchDoctor = async () => {
         isAppointed.value = appointedDoctorIds.includes(parseInt(doctorId));
         
         // Get doctor details
-        const doctorRes = await axios.get(`http://127.0.0.1:8000/api/doctors/${doctorId}/`, {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const doctorRes = await api.get(`/doctors/${doctorId}/`);
         
         doctor.value = doctorRes.data;
         loading.value = false;
@@ -56,11 +50,7 @@ const confirmRevoke = async () => {
     showConfirmModal.value = false;
     
     try {
-        const token = localStorage.getItem('accessToken');
-        await axios.delete(
-            `http://127.0.0.1:8000/api/patients/${currentPatientId.value}/remove-doctor/${doctorId}/`,
-            { headers: { 'Authorization': `Token ${token}` } }
-        );
+        await api.delete(`/patients/${currentPatientId.value}/remove-doctor/${doctorId}/`);
         
         // Redirect back to doctors list
         router.push('/doctors');

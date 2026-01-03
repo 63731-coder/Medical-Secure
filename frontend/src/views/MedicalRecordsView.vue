@@ -1,12 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import axios from 'axios';
-import { decryptData, encryptData } from '../utils/crypto';
+import api from '../services/api';
+import { decryptData, encryptData, deriveKeyFromUser, decryptSharedKey, decryptWithSharedKey, encryptWithSharedKey } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
-import api from '../services/api';
 import { useNotifications } from '../composables/useNotifications';
+import CryptoJS from 'crypto-js';
 
 const route = useRoute();
 const router = useRouter();
@@ -17,6 +17,7 @@ const error = ref("");
 const patient = ref(null);
 const patientId = ref(route.query.patient_id);
 const userType = ref(null);
+const currentDoctorId = ref(null);  // For doctors to decrypt shared keys
 const showDeleteModal = ref(false);
 const recordToDelete = ref(null);
 const showEditModal = ref(false);
@@ -44,17 +45,14 @@ const fetchPatient = async () => {
 // Fetch medical records from API
 const fetchRecords = async () => {
     try {
-        const token = localStorage.getItem('accessToken');
-        let url = 'http://127.0.0.1:8000/api/files/';
+        let url = '/files/';
         
         // Add patient filter if patient_id is provided
         if (patientId.value) {
             url += `?patient_id=${patientId.value}`;
         }
         
-        const response = await axios.get(url, {
-            headers: { 'Authorization': `Token ${token}` }
-        });
+        const response = await api.get(url);
         
         records.value = response.data;
         loading.value = false;
@@ -67,44 +65,69 @@ const fetchRecords = async () => {
 
 const handleDownload = async (record) => {
     try {
-        const token = localStorage.getItem('accessToken');
+        let decryptedBase64;
         
         // 1. Download encrypted blob from server
-        const response = await axios.get(`http://127.0.0.1:8000/api/files/${record.id}/download/`, {
-            headers: { 'Authorization': `Token ${token}` },
-            responseType: 'blob'
-        });
+        const response = await api.get(`/files/${record.id}/download/`, { responseType: 'blob' });
         
         // 2. Read blob as text
         const encryptedText = await response.data.text();
         
-        // 3. Decrypt using client-side key
-        const decryptedBase64 = decryptData(encryptedText);
+        // 3. Decrypt based on user type
+        if (userType.value === 'doctor' && patientId.value) {
+            // Doctor downloading patient file - use shared key
+            try {
+                // Get shared encryption key from API
+                const keyResponse = await api.get('/get-shared-key/', {
+                    params: { patient_id: patientId.value }
+                });
+                
+                const encryptedSharedKey = keyResponse.data.encrypted_key;
+                
+                // SIMPLIFIED: Decrypt using doctor ID only
+                const patientKey = decryptSharedKey(encryptedSharedKey, currentDoctorId.value);
+                
+                if (!patientKey) {
+                    throw new Error("Failed to decrypt shared encryption key");
+                }
+                
+                // Decrypt file content using patient's key
+                decryptedBase64 = decryptWithSharedKey(encryptedText, patientKey);
+            } catch (keyError) {
+                console.error("Shared key error:", keyError);
+                throw new Error("Cannot access patient files. Key sharing may not be set up.");
+            }
+        } else {
+            // Patient downloading their own file - use their key
+            decryptedBase64 = decryptData(encryptedText);
+        }
         
         if (!decryptedBase64) {
-            throw new Error("Decryption failed. Wrong key?");
+            throw new Error("Decryption failed. Encryption key not found or invalid.");
         }
         
         // 4. Convert Base64 back to binary
         const binaryString = atob(decryptedBase64);
-        const bytes = new Uint8Array(binaryString.length);
+        const bytesArray = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
+            bytesArray[i] = binaryString.charCodeAt(i);
         }
         
         // 5. Create download link for decrypted file
-        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const blob = new Blob([bytesArray], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = record.name.replace('.enc', ''); // Remove .enc extension
+        
+        // Remove .enc extension properly
+        const cleanName = record.name.replace(/\.enc$/, '');
+        link.download = cleanName;
+        
         link.click();
         URL.revokeObjectURL(url);
-        
-        console.log(`✅ File ${record.name} decrypted and downloaded`);
     } catch (err) {
         console.error("Download/decryption error:", err);
-        error.value = `Failed to decrypt ${record.name}`;
+        error.value = `Failed to decrypt ${record.name}: ${err.message}`;
     }
 };
 
@@ -192,9 +215,41 @@ const saveEdit = async () => {
                         uint8Array.forEach(byte => binary += String.fromCharCode(byte));
                         const base64Content = btoa(binary);
                         
-                        const encryptedContent = encryptData(base64Content);
-                        if (!encryptedContent) {
-                            throw new Error('Encryption failed');
+                        let encryptedContent;
+                        
+                        // Check if user is a doctor - must use patient's key
+                        if (userType.value === 'doctor') {
+                            try {
+                                // Get patient's shared encryption key
+                                const keyResponse = await api.get('/get-shared-key/', {
+                                    params: { patient_id: patientId.value }
+                                });
+                                
+                                const encryptedSharedKey = keyResponse.data.encrypted_key;
+                                
+                                // Decrypt patient's key using doctor's ID
+                                const patientKey = decryptSharedKey(encryptedSharedKey, currentDoctorId.value);
+                                
+                                if (!patientKey) {
+                                    throw new Error("Failed to decrypt patient's encryption key");
+                                }
+                                
+                                // Encrypt file content with patient's key
+                                encryptedContent = encryptWithSharedKey(base64Content, patientKey);
+                                
+                                if (!encryptedContent) {
+                                    throw new Error("Failed to encrypt file with patient's key");
+                                }
+                            } catch (keyError) {
+                                console.error("Key retrieval error:", keyError);
+                                throw new Error("Cannot encrypt file for patient. Ensure you have access to their key.");
+                            }
+                        } else {
+                            // Patient editing their own file - use their own key
+                            encryptedContent = encryptData(base64Content);
+                            if (!encryptedContent) {
+                                throw new Error('Encryption failed');
+                            }
                         }
                         
                         const encryptedBlob = new Blob([encryptedContent], { type: 'application/octet-stream' });
@@ -208,23 +263,22 @@ const saveEdit = async () => {
             });
         }
         
-        const token = localStorage.getItem('accessToken');
-        await axios.put(
-            `http://127.0.0.1:8000/api/files/${recordToEdit.value.id}/edit/`,
-            formData,
-            {
-                headers: {
-                    'Authorization': `Token ${token}`,
-                    'Content-Type': 'multipart/form-data'
-                }
-            }
-        );
+        const response = await api.put(`/files/${recordToEdit.value.id}/edit/`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         
-        notifySuccess('Medical record updated successfully');
+        // Check if it's a pending request (for doctors)
+        if (response.data?.pending) {
+            notifySuccess('Edit request sent to patient for approval');
+        } else {
+            // Direct update (for patients)
+            notifySuccess('Medical record updated successfully');
+            await fetchRecords();
+        }
+        
         showEditModal.value = false;
         recordToEdit.value = null;
         editFile.value = null;
-        await fetchRecords();
         
     } catch (err) {
         console.error('Edit error:', err);
@@ -246,6 +300,11 @@ onMounted(async () => {
     try {
         const profileRes = await api.getProfile();
         userType.value = profileRes.data.user_type;
+        
+        // Get doctor ID if user is a doctor
+        if (userType.value === 'doctor' && profileRes.data.profile) {
+            currentDoctorId.value = profileRes.data.profile.id;
+        }
     } catch (e) {
         console.error('Failed to get user profile:', e);
     }
@@ -315,7 +374,7 @@ onMounted(async () => {
                                 </svg>
                                 Download
                             </button>
-                            <button v-if="userType === 'patient'" @click="openEditModal(file)" class="text-green-600 hover:text-green-900 font-medium inline-flex items-center gap-1">
+                            <button @click="openEditModal(file)" class="text-green-600 hover:text-green-900 font-medium inline-flex items-center gap-1">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
@@ -354,7 +413,10 @@ onMounted(async () => {
             <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @click.self="cancelEdit">
                 <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-200">
-                        <h3 class="text-lg font-semibold text-gray-900">Edit Medical Record</h3>
+                        <h3 class="text-lg font-semibold text-gray-900">
+                            {{ userType === 'doctor' ? 'Request to Edit Medical Record' : 'Edit Medical Record' }}
+                        </h3>
+                        <p v-if="userType === 'doctor'" class="text-sm text-blue-600 mt-1">⚠️ Patient approval required for changes</p>
                     </div>
                     
                     <div class="px-6 py-4 space-y-4">
@@ -387,7 +449,7 @@ onMounted(async () => {
                         </button>
                         <button @click="saveEdit" :disabled="editLoading"
                             class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50">
-                            {{ editLoading ? 'Saving...' : 'Save Changes' }}
+                            {{ editLoading ? 'Processing...' : (userType === 'doctor' ? 'Send Request' : 'Save Changes') }}
                         </button>
                     </div>
                 </div>

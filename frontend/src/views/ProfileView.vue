@@ -25,10 +25,9 @@ onMounted(async () => {
 
 function logout() {
     clearEncryptionKey();
-    localStorage.removeItem('token');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userType');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    sessionStorage.clear();
     router.push('/login');
 }
 </script>

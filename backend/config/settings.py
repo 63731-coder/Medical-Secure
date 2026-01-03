@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config, Csv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +21,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=-(9e_0t$@d_m2w)0n#l1@-yqgjfiqsy$x)4y0)in_ui!z&vtr'
+SECRET_KEY = config('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=Csv())
 
 
 # Application definition
@@ -93,7 +94,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / config('DATABASE_NAME', default='db.sqlite3'),
     }
 }
 
@@ -119,7 +120,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Configuration DRF (Django REST Framework)
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',  # Token simple pour commencer
+        'med_secure.keycloak_auth.KeycloakAuthentication',  # Keycloak JWT authentication
         'rest_framework.authentication.SessionAuthentication',  # Pour l'admin Django
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -161,3 +162,38 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# ===========================
+# KEYCLOAK CONFIGURATION
+# ===========================
+KEYCLOAK_SERVER_URL = config('KEYCLOAK_SERVER_URL', default='http://localhost:8080')
+KEYCLOAK_REALM = config('KEYCLOAK_REALM', default='medical-realm')
+KEYCLOAK_CLIENT_ID = config('KEYCLOAK_CLIENT_ID', default='medical-app')
+KEYCLOAK_CLIENT_SECRET = config('KEYCLOAK_CLIENT_SECRET')
+KEYCLOAK_REDIRECT_URI = config('KEYCLOAK_REDIRECT_URI', default='http://localhost:5173/callback')
+
+# ================================================
+# Security Settings for HTTPS and Data Protection
+# ================================================
+
+# HTTPS/SSL (False for local dev, True for production)
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# HSTS - Force HTTPS for 1 year after first visit
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# Security Headers
+SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevent MIME sniffing
+SECURE_BROWSER_XSS_FILTER = True     # XSS protection
+X_FRAME_OPTIONS = 'DENY'             # Prevent clickjacking
+
+# Secure Cookies (HttpOnly prevents XSS, SameSite prevents CSRF)
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'

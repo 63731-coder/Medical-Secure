@@ -1,8 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
+import LoginViewKeycloak from '../views/LoginViewKeycloak.vue'
+import CallbackView from '../views/CallbackView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import ProfileView from '../views/ProfileView.vue'
+import api from '../services/api'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -21,7 +24,17 @@ const router = createRouter({
         {
             path: '/login',
             name: 'login',
-            component: LoginView
+            component: LoginViewKeycloak  // New Keycloak login
+        },
+        {
+            path: '/login-legacy',
+            name: 'login-legacy',
+            component: LoginView  // Old password login
+        },
+        {
+            path: '/callback',  // OAuth2 callback route
+            name: 'callback',
+            component: CallbackView
         },
         {
             path: '/register',   // <--- NOUVELLE ROUTE
@@ -66,12 +79,14 @@ const router = createRouter({
         {
             path: '/my-patients',
             name: 'my-patients',
-            component: () => import('../views/MyPatientsView.vue')
+            component: () => import('../views/MyPatientsView.vue'),
+            meta: { requiresDoctor: true }
         },
         {
             path: '/add-patient',
             name: 'add-patient',
-            component: () => import('../views/AddPatientView.vue')
+            component: () => import('../views/AddPatientView.vue'),
+            meta: { requiresDoctor: true }
         },
         {
             path: '/doctor-requests',
@@ -91,14 +106,28 @@ const router = createRouter({
 
 
 // Simple Navigation Guard
-router.beforeEach((to, from, next) => {
-    const publicPages = ['/login', '/register', '/about'];
+router.beforeEach(async (to, from, next) => {
+    const publicPages = ['/login', '/register', '/about', '/callback'];
     const authRequired = !publicPages.includes(to.path);
-    const loggedIn = localStorage.getItem('accessToken');
+    const loggedIn = localStorage.getItem('access_token'); // Keycloak uses 'access_token'
 
     if (authRequired && !loggedIn) {
         return next('/login');
     }
+
+    // Check if route requires doctor role
+    if (to.meta.requiresDoctor) {
+        try {
+            const response = await api.getProfile();
+            if (response.data.user_type !== 'doctor') {
+                return next('/'); // Redirect to home if not a doctor
+            }
+        } catch (error) {
+            console.error('Failed to check user type:', error);
+            return next('/');
+        }
+    }
+
     next();
 });
 
