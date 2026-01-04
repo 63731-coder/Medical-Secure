@@ -36,29 +36,6 @@ The application consists of three main components:
    - Stores encrypted medical records
    - User data and relationships
 
-## Quick Start
-
-Get the application running in 3 steps:
-
-```bash
-# 1. Start Docker services (PostgreSQL, Keycloak)
-docker-compose up -d
-
-# 2. Setup backend (install deps, configure, migrate DB)
-cd backend
-pip install -r requirements.txt
-python manage.py migrate
-
-# 3. Setup and run frontend
-cd ../frontend
-npm install
-npm run dev
-```
-
-Then open http://localhost:5173 in your browser!
-
-> **Windows users**: Use `setup.bat` and `run.bat` scripts for automated setup.
-
 ## Prerequisites
 
 ### For Ubuntu 22.04 (x64)
@@ -77,124 +54,130 @@ Then open http://localhost:5173 in your browser!
 - Keycloak 23.0
 - Docker Desktop (recommended)
 
-## Building the Project
+## Getting Started
 
-### Quick Setup (Recommended)
+You have two options to setup and run the application:
+1. **Automated Setup** (Recommended) - Using scripts
+2. **Manual Setup** - Using terminal commands
 
-We provide automated setup scripts that will install dependencies, configure the database, and prepare the project.
+---
 
-**On Ubuntu 22.04:**
-```bash
-chmod +x setup.sh run.sh
-./setup.sh
-```
+## Option 1: Automated Setup
 
-**On Windows 10:**
+This is the easiest way to get started. We provide automated scripts that handle everything for you.
+
+### Step 1: Run Setup Script
+
+**On Windows:**
 ```cmd
 setup.bat
 ```
 
-The setup script will:
-- Check and install required dependencies (Docker, Python, Node.js)
-- Start Docker services (PostgreSQL, Keycloak)
-- Install Python packages
-- Run database migrations
-- Install Node.js packages
-
-### Manual Setup
-
-If you prefer to set up manually:
-
-1. **Install Docker and Docker Compose**
-   - Ubuntu: `sudo apt-get install docker.io docker-compose`
-   - Windows: Install Docker Desktop from https://www.docker.com/products/docker-desktop
-
-2. **Start Docker services (PostgreSQL, Keycloak)**
-   ```bash
-   docker-compose up -d
-   ```
-   
-   Wait ~10 seconds for services to be ready.
-
-3. **Environment variables (already configured)**
-   
-   The `backend/.env` file is already included in the repository with all necessary configuration:
-   - **Django settings**: SECRET_KEY, DEBUG, ALLOWED_HOSTS
-   - **Database credentials**: DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
-   - **Keycloak configuration**: KEYCLOAK_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_CLIENT_SECRET
-   
-
-4. **Install backend dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Run database migrations**
-   ```bash
-   python manage.py migrate
-   ```
-
-6. **Install frontend dependencies**
-   ```bash
-   cd ../frontend
-   npm install
-   ```
-
-## Running the Project
-
-### Quick Start (Recommended)
-
-After running the setup script, you can start the application using:
-
-**On Ubuntu 22.04:**
+**On Ubuntu:**
 ```bash
-./run.sh
+chmod +x setup.sh
+./setup.sh
 ```
 
-**On Windows 10:**
+The setup script will automatically:
+- ✅ Check if Docker, Python, and Node.js are installed
+- ✅ Start Docker services (PostgreSQL, Keycloak)
+- ✅ Install Python packages
+- ✅ Run database migrations
+- ✅ Install Node.js packages
+
+### Step 2: Run the Application
+
+**On Windows:**
 ```cmd
 run.bat
 ```
 
+**On Ubuntu:**
+```bash
+./run.sh
+```
+
 The run script will automatically:
-- Start Docker services: PostgreSQL and Keycloak (if not running)
-- Launch the backend server on port 8000
-- Launch the frontend development server on port 5173
+- ✅ Start Docker services (if not already running)
+- ✅ Launch the backend server on port 8000 (in a new window)
+- ✅ Launch the frontend server on port 5173 (in a new window)
 
-Access the application at:
+### Access the Application
+
+Once the scripts finish, open your browser:
 - **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8000
-- **Keycloak Admin Console**: http://localhost:8080 (admin/admin123)
+- **Keycloak Admin**: http://localhost:8080 (admin/admin123)
 
-### Manual Start
+---
 
-If you prefer to start the servers manually:
+## Option 2: Manual Setup
 
-**Start the Backend Server:**
+If you prefer to run commands manually, follow these steps:
 
-On Ubuntu:
+### Step 1: Install Dependencies
+
+**Install Docker and Docker Compose:**
+- Ubuntu: `sudo apt-get install docker.io docker-compose`
+- Windows: Install Docker Desktop from https://www.docker.com/products/docker-desktop
+
+### Step 2: Start Docker Services
+
+```bash
+docker-compose up -d
+```
+
+Wait ~10 seconds for services to be ready (PostgreSQL, Keycloak).
+
+> **Note**: The `backend/.env` file is already included in the repository with all necessary configuration (Django settings, database credentials, Keycloak configuration).
+
+### Step 3: Setup Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+python manage.py migrate
+```
+
+### Step 4: Setup Frontend
+
+```bash
+cd frontend
+npm install
+```
+
+### Step 5: Start Backend Server
+
+Open a terminal and run:
+
+**On Ubuntu:**
 ```bash
 cd backend
 python3 manage.py runserver 0.0.0.0:8000
 ```
 
-On Windows:
+**On Windows:**
 ```bash
 cd backend
 python manage.py runserver 0.0.0.0:8000
 ```
 
-The backend API will be available at http://localhost:8000
 
-**Start the Frontend Development Server:**
+### Step 6: Start Frontend Server
 
-On both Ubuntu and Windows:
+Open another terminal and run:
+
 ```bash
 cd frontend
 npm run dev
 ```
 
 The frontend application will be available at http://localhost:5173
+
+### Access the Application
+
+- **Frontend**: http://localhost:5173
+- **Keycloak Admin**: http://localhost:8080 (admin/admin123)
 
 ## Usage
 
@@ -208,7 +191,7 @@ The frontend application will be available at http://localhost:5173
    - The `medical-realm` is automatically imported with pre-configured users and roles
 
 3. **Register a new account**
-   - Click on "Register" and create a new patient account
+   - Click on "Create Account" and create a new patient account
 
 4. **Login**
    - Use your credentials to log in to the system
@@ -265,14 +248,6 @@ If you need to retrieve or regenerate the Keycloak client secret:
 
 > **Note**: The default client secret is already configured in `.env` from the imported realm configuration.
 
-5. **For Patients:**
-   - View your medical records
-   - Manage access permissions for doctors
-   - Upload your own medical records
-
-
-
-
 ### Database Connection Issues
 - Ensure Docker services are running: `docker ps`
 - Check if PostgreSQL is accessible: `docker logs medical-postgres`
@@ -299,3 +274,10 @@ python manage.py migrate
 If ports 5432, 8000, 8080, or 5173 are already in use:
 - Check running processes: `netstat -ano | findstr "8000"` (Windows) or `lsof -i :8000` (Ubuntu)
 - Stop conflicting services or change ports in configuration files
+
+---
+
+## Security Note
+
+> **⚠️ Important - Security Best Practice:**  
+> For educational purposes, the `.env` file containing configuration secrets is included in this repository to simplify setup and evaluation. **In a professional/production environment, you should NEVER commit `.env` files to version control!** Always use `.gitignore` to exclude them and provide a `.env.example` template instead.
