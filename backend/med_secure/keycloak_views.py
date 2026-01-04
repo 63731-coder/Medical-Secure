@@ -24,6 +24,7 @@ class KeycloakRegisterView(APIView):
         first_name = request.data.get('first_name', '')
         last_name = request.data.get('last_name', '')
         user_type = request.data.get('user_type')  # 'patient' or 'doctor'
+        recaptcha_token = request.data.get('recaptcha_token')  # reCAPTCHA v3 token
         
         # Additional fields
         date_of_birth = request.data.get('date_of_birth')  # for patient
@@ -39,6 +40,46 @@ class KeycloakRegisterView(APIView):
         if user_type not in ['patient', 'doctor']:
             return Response(
                 {'error': 'user_type must be "patient" or "doctor"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ===========================
+        # reCAPTCHA v3 Verification
+        # ===========================
+        if recaptcha_token:
+            recaptcha_secret = settings.RECAPTCHA_SECRET_KEY
+            recaptcha_url = 'https://www.google.com/recaptcha/api/siteverify'
+            
+            try:
+                recaptcha_response = requests.post(recaptcha_url, data={
+                    'secret': recaptcha_secret,
+                    'response': recaptcha_token
+                })
+                recaptcha_result = recaptcha_response.json()
+                
+                # Check if verification succeeded
+                if not recaptcha_result.get('success'):
+                    return Response(
+                        {'error': 'reCAPTCHA verification failed. Please try again.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Check score (v3 only) - should be >= 0.5 for human-like behavior
+                score = recaptcha_result.get('score', 0)
+                if score < 0.5:
+                    return Response(
+                        {'error': 'Registration blocked: Bot-like behavior detected.'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+                
+            except Exception as e:
+                return Response(
+                    {'error': 'Failed to verify reCAPTCHA. Please try again.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        else:
+            return Response(
+                {'error': 'reCAPTCHA token is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

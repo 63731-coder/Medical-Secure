@@ -172,6 +172,11 @@ KEYCLOAK_CLIENT_ID = config('KEYCLOAK_CLIENT_ID', default='medical-app')
 KEYCLOAK_CLIENT_SECRET = config('KEYCLOAK_CLIENT_SECRET')
 KEYCLOAK_REDIRECT_URI = config('KEYCLOAK_REDIRECT_URI', default='http://localhost:5173/callback')
 
+# ===========================
+# RECAPTCHA CONFIGURATION
+# ===========================
+RECAPTCHA_SECRET_KEY = config('RECAPTCHA_SECRET_KEY')
+
 # ================================================
 # Security Settings for HTTPS and Data Protection
 # ================================================

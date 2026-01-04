@@ -42,7 +42,6 @@ export default {
         
         // Obtenir le token reCAPTCHA
         const recaptchaToken = await this.executeRecaptcha('register')
-        console.log('reCAPTCHA token obtained')
 
         // Générer un mot de passe temporaire simple
         const tempPassword = this.generateTempPassword()
