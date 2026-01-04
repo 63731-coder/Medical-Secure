@@ -1193,12 +1193,4 @@ def validate_file(self, value):
 
 ---
 
-## General Summary
 
-The **Medical Secure** project presents a solid security foundation with modern mechanisms: authentication via Keycloak with OAuth 2.0/OIDC, end-to-end encryption of sensitive data, role-based access control, and protection against main injection vulnerabilities. The approval workflow for sensitive actions and the use of UUIDs strengthen the overall system security.
-
----
-
-**Date**: January 4, 2026  
-**Author**: Automated Security Report  
-**Version**: 1.0
