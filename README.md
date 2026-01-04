@@ -281,3 +281,11 @@ If ports 5432, 8000, 8080, or 5173 are already in use:
 
 > **⚠️ Important - Security Best Practice:**  
 > For educational purposes, the `.env` file containing configuration secrets is included in this repository to simplify setup and evaluation. **In a professional/production environment, you should NEVER commit `.env` files to version control!** Always use `.gitignore` to exclude them and provide a `.env.example` template instead.
+
+## Security Checklist Report
+
+> **📋 Security Documentation:**  
+> A comprehensive security checklist report covering all 15 security points is available in the `/rapports` folder:
+>`Security_Checklist_Report.md`
+>
+> This report detail how each security measure is implemented in our project, with code examples and explanations.
