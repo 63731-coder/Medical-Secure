@@ -42,6 +42,8 @@ static/
 # ========================
 # SECURITY (Environment vars)
 # ========================
-.env
-.env.local
-.env.*.local
+# .env files are now committed for educational purposes
+# In production, NEVER commit .env files!
+# .env
+# .env.local
+# .env.*.local

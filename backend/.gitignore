@@ -16,8 +16,10 @@ db.sqlite3-journal
 media/
 
 # Environment variables
-.env
-.env.local
+# .env files are now committed for educational purposes
+# In production, NEVER commit .env files!
+# .env
+# .env.local
 
 # IDE
 .vscode/
