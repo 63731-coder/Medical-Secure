@@ -1,8 +1,13 @@
 <script>
 import axios from 'axios'
+import { useReCaptcha } from 'vue-recaptcha-v3'
 
 export default {
   name: "RegisterPage",
+  setup() {
+    const { executeRecaptcha, recaptchaLoaded } = useReCaptcha()
+    return { executeRecaptcha, recaptchaLoaded }
+  },
   data() {
     return {
       username: '',
@@ -32,6 +37,13 @@ export default {
           return
         }
 
+        // Attendre que reCAPTCHA soit prêt
+        await this.recaptchaLoaded()
+        
+        // Obtenir le token reCAPTCHA
+        const recaptchaToken = await this.executeRecaptcha('register')
+        console.log('reCAPTCHA token obtained')
+
         // Générer un mot de passe temporaire simple
         const tempPassword = this.generateTempPassword()
 
@@ -43,7 +55,8 @@ export default {
           last_name: this.lastName,
           user_type: 'patient',  // Always patient
           date_of_birth: this.dateOfBirth,
-          organisation: null
+          organisation: null,
+          recaptcha_token: recaptchaToken
         })
 
         if (response.data) {
@@ -149,16 +162,15 @@ export default {
         <input type="text" v-model="organisation" required placeholder="Hospital name" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
 
-      <div class="bg-white p-4 rounded flex items-center justify-center">
-        <div class="flex items-center">
-          <input type="checkbox" id="captcha" required class="mr-2" />
-          <label for="captcha" class="text-gray-700">I'm not a robot</label>
-        </div>
+      <div class="bg-blue-50 border border-blue-200 p-3 rounded text-center">
+        <p class="text-sm text-gray-700">
+          🔒 Protected by Google reCAPTCHA
+        </p>
       </div>
 
       <button type="submit" :disabled="loading" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200 disabled:bg-gray-500">
         <span v-if="loading">Creating account...</span>
-        <span v-else">Register</span>
+        <span v-else>Register</span>
       </button>
 
       <div class="text-center mt-4">

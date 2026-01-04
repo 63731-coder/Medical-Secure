@@ -230,9 +230,28 @@ KEYCLOAK_SERVER_URL=http://localhost:8080
 KEYCLOAK_REALM=medical-realm
 KEYCLOAK_CLIENT_ID=medical-app
 KEYCLOAK_CLIENT_SECRET=WTpUYIN6Vsg6QeRWwm6H7k6pPLDq9fXw
+
+# Google reCAPTCHA Configuration (for bot protection)
+RECAPTCHA_SECRET_KEY=6Lfb-T8sAAAAAGIJwbF7Zh-6a0u-ExsozUXyfpD2
 ```
 
-Note: In a production environment, the .env file should be added to .gitignore and managed securely.
+**Note**: In a production environment, the .env file should be added to .gitignore and managed securely.
+
+### Google reCAPTCHA Setup
+
+The registration page uses **Google reCAPTCHA v3** (invisible) to prevent bot attacks. To configure:
+
+1. **Create a free reCAPTCHA account** at https://www.google.com/recaptcha/admin/create
+2. **Register a new site**:
+   - Label: `MedSecure App` (or any name)
+   - reCAPTCHA type: **v3** (invisible, no challenge)
+   - Domain: `localhost` (for development, just the hostname without protocol or port)
+3. **Copy your keys**:
+   - **Site key**: Copy and paste into [frontend/src/main.js](frontend/src/main.js) (replace the siteKey value in VueReCaptcha config)
+   - **Secret key**: Add to `backend/.env` as `RECAPTCHA_SECRET_KEY`
+4. **Restart both frontend and backend** to apply changes
+
+> **Important**: The reCAPTCHA v3 is invisible - users won't see any checkbox or image challenge. It works automatically in the background to detect bots.
 
 ### Finding Keycloak Client Secret
 

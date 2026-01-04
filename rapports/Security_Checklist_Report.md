@@ -175,6 +175,107 @@ def _sync_user(self, token):
 - Automatic profile synchronization based on Keycloak roles
 - Clear separation of permissions by user type
 
+#### Google reCAPTCHA v3 (Bot Protection)
+
+**File**: [`frontend/src/views/RegisterView.vue`](frontend/src/views/RegisterView.vue)
+
+```javascript
+import { useReCaptcha } from 'vue-recaptcha-v3'
+
+export default {
+  setup() {
+    const { executeRecaptcha, recaptchaLoaded } = useReCaptcha()
+    return { executeRecaptcha, recaptchaLoaded }
+  },
+  
+  methods: {
+    async handleSubmit() {
+      await this.recaptchaLoaded()
+      
+      // Generate reCAPTCHA token
+      const recaptchaToken = await this.executeRecaptcha('register')
+      console.log('✅ reCAPTCHA token obtained')
+      
+      // Send to backend with token
+      const response = await axios.post('/api/register/', {
+        ...this.formData,
+        recaptcha_token: recaptchaToken
+      })
+    }
+  }
+}
+```
+
+**File**: [`frontend/src/main.js`](frontend/src/main.js)
+
+```javascript
+import { VueReCaptcha } from 'vue-recaptcha-v3'
+
+app.use(VueReCaptcha, {
+  siteKey: '6Lfb-T8sAAAAAO3_j-UIGfplkAIL4IZ_dyOaZ8Tu',
+  loaderOptions: {
+    autoHideBadge: false,
+    explicitRenderParameters: {
+      badge: 'bottomright'
+    }
+  }
+})
+```
+
+**File**: [`backend/med_secure/keycloak_views.py`](backend/med_secure/keycloak_views.py)
+
+```python
+import os
+import requests
+
+class KeycloakRegisterView(APIView):
+    def _verify_recaptcha(self, token):
+        """Verify reCAPTCHA token with Google API"""
+        secret_key = os.getenv('RECAPTCHA_SECRET_KEY')
+        
+        print(f"🔍 Verifying reCAPTCHA token: {token[:20]}...")
+        
+        response = requests.post(
+            'https://www.google.com/recaptcha/api/siteverify',
+            data={
+                'secret': secret_key,
+                'response': token
+            }
+        )
+        
+        result = response.json()
+        print(f"📊 reCAPTCHA API response: {result}")
+        
+        if not result.get('success'):
+            print("❌ reCAPTCHA verification failed")
+            return False
+        
+        score = result.get('score', 0)
+        print(f"✅ reCAPTCHA score: {score}")
+        
+        # Accept score >= 0.3 (Google recommends 0.5, we're more lenient)
+        return score >= 0.3
+    
+    def post(self, request):
+        recaptcha_token = request.data.get('recaptcha_token')
+        
+        if not recaptcha_token or not self._verify_recaptcha(recaptcha_token):
+            return Response(
+                {'error': 'reCAPTCHA validation failed'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Continue with registration...
+```
+
+**Explanation**:
+- **Google reCAPTCHA v3** provides invisible bot protection (no challenge for users)
+- **Score-based validation** (0.0 = likely bot, 1.0 = likely human)
+- Threshold of **0.3** to balance security and user experience
+- Token generation on client-side, verification on server-side with Google API
+- **Environment variable** for secret key (`RECAPTCHA_SECRET_KEY`)
+- Detailed logging for debugging and monitoring
+
 #### Protection against brute force attacks
 
 **Keycloak Configuration** (implicit):
