@@ -153,10 +153,9 @@ const filteredPatients = () => {
         // Search filter (if search query exists)
         if (searchQuery.value) {
             const query = searchQuery.value.toLowerCase();
-            const fullName = `${p.user.first_name} ${p.user.last_name}`.toLowerCase();
             const username = p.user.username.toLowerCase();
             const email = p.user.email.toLowerCase();
-            return fullName.includes(query) || username.includes(query) || email.includes(query);
+            return username.includes(query) || email.includes(query);
         }
         
         // Show all if no search query
@@ -166,9 +165,12 @@ const filteredPatients = () => {
 
 const requestAddPatient = async (patient) => {
     try {
-        await api.createRequest({ patient_id: patient.id });
-        success(`Access request sent to ${patient.user.first_name} ${patient.user.last_name}`);
-        showAlert('success', `Access request sent to ${patient.user.first_name} ${patient.user.last_name}`);
+        await api.createRequest({ 
+            patient_id: patient.id,
+            action_type: 'add'  // Required for doctor-initiated requests
+        });
+        success(`Access request sent to @${patient.user.username}`);
+        showAlert('success', `Access request sent to @${patient.user.username}`);
         
         // Add to pending requests to remove from available list
         pendingRequests.value.push({ patient });

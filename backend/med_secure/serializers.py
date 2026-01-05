@@ -62,33 +62,13 @@ class MedicalFileSerializer(serializers.ModelSerializer):
     
     def validate_name(self, value):
         """Prevent path traversal attacks in filenames"""
-        # Check for path traversal patterns
-        if '..' in value:
-            raise serializers.ValidationError("Filename cannot contain '..'")
-        
-        # Check for directory separators
-        if '/' in value or '\\' in value:
-            raise serializers.ValidationError("Filename cannot contain path separators")
-        
-        # Check for dangerous characters (Windows/Linux)
-        dangerous_chars = r'[<>:"|?*\x00-\x1f]'
-        if re.search(dangerous_chars, value):
-            raise serializers.ValidationError("Filename contains invalid characters")
-        
-        # Check for reserved Windows names
-        reserved_names = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 
-                         'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 
-                         'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9']
-        if value.upper().split('.')[0] in reserved_names:
-            raise serializers.ValidationError("Filename uses a reserved system name")
-        
-        return value
+        # Security: Clear plaintext name (use encrypted version only)
+        return ''
     
     def validate_description(self, value):
         """Sanitize HTML/JavaScript to prevent XSS attacks"""
-        # Whitelist approach: strip all HTML tags
-        sanitized = bleach.clean(value, tags=[], strip=True)
-        return sanitized
+        # Security: Clear plaintext description (use encrypted version only)
+        return ''
     
     def validate_file(self, value):
         """Validate file size and MIME type"""
@@ -160,12 +140,19 @@ class RegisterSerializer(serializers.ModelSerializer):
         date_of_birth = validated_data.pop('date_of_birth', None)
         organisation = validated_data.pop('organisation', None)
         
+        # For patients: clear first_name/last_name (stored only in encrypted fields)
+        # For doctors: keep names (trusted users)
+        if user_type == 'patient':
+            validated_data['first_name'] = ''
+            validated_data['last_name'] = ''
+        
         # Create user
         user = User.objects.create_user(**validated_data)
         
         # Create profile based on type
         if user_type == 'patient':
-            Patient.objects.create(user=user, date_of_birth=date_of_birth)
+            # Security: Don't store date_of_birth in plaintext (use encrypted_date_of_birth only)
+            Patient.objects.create(user=user, date_of_birth=None)
         elif user_type == 'doctor':
             Doctor.objects.create(user=user, organisation=organisation)
         

@@ -157,13 +157,24 @@ class KeycloakRegisterView(APIView):
 
         # Create user in local database
         try:
-            # NEVER store sensitive data in plaintext - use anonymous placeholders
-            django_user = User.objects.create_user(
-                username=username,
-                email=email,
-                first_name='[ENCRYPTED]',  # Real data in encrypted_first_name
-                last_name='[ENCRYPTED]'     # Real data in encrypted_last_name
-            )
+            # Store data differently based on user type
+            if user_type == 'patient':
+                # PATIENTS: No plaintext data in DB
+                django_user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    first_name='',
+                    last_name=''
+                )
+            else:
+                # DOCTORS: Store plaintext in DB (trusted users)
+                django_user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name
+                )
+            
             django_user.set_unusable_password()  # Password managed by Keycloak
             django_user.save()
 
@@ -172,7 +183,7 @@ class KeycloakRegisterView(APIView):
                 Patient.objects.create(
                     user=django_user,
                     keycloak_id=keycloak_id,
-                    date_of_birth=None,  # Real data ONLY in encrypted_date_of_birth
+                    date_of_birth=None,
                     encrypted_date_of_birth=encrypted_date_of_birth,
                     encrypted_first_name=encrypted_first_name,
                     encrypted_last_name=encrypted_last_name
@@ -181,7 +192,7 @@ class KeycloakRegisterView(APIView):
                 Doctor.objects.create(
                     user=django_user,
                     keycloak_id=keycloak_id,
-                    organisation='[ENCRYPTED]',  # Real data ONLY in encrypted_organisation
+                    organisation=organisation,
                     encrypted_organisation=encrypted_organisation,
                     encrypted_first_name=encrypted_first_name,
                     encrypted_last_name=encrypted_last_name
@@ -449,6 +460,7 @@ class CurrentUserView(APIView):
         # Determine user type and get profile
         user_type = None
         profile_data = {}
+        encrypted_data = {}
         
         if hasattr(user, 'patient_profile'):
             user_type = 'patient'
@@ -465,6 +477,12 @@ class CurrentUserView(APIView):
                     }
                     for doc in patient.appointed_doctors.all()
                 ]
+            }
+            # Add encrypted data for client-side decryption
+            encrypted_data = {
+                'encrypted_first_name': patient.encrypted_first_name,
+                'encrypted_last_name': patient.encrypted_last_name,
+                'encrypted_date_of_birth': patient.encrypted_date_of_birth
             }
         elif hasattr(user, 'doctor_profile'):
             user_type = 'doctor'
@@ -483,5 +501,6 @@ class CurrentUserView(APIView):
             'first_name': user.first_name,
             'last_name': user.last_name,
             'user_type': user_type,
-            'profile': profile_data
+            'profile': profile_data,
+            'encrypted_data': encrypted_data
         })

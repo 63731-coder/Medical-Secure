@@ -103,7 +103,8 @@ const getPatientName = (patient) => {
     if (data) {
         return `${data.firstName} ${data.lastName}`;
     }
-    return `${patient.user.first_name} ${patient.user.last_name}`;
+    // Fallback to username if decryption failed
+    return `@${patient.user.username}`;
 };
 
 // Get decrypted patient date of birth
@@ -112,7 +113,7 @@ const getPatientDOB = (patient) => {
     if (data && data.dateOfBirth) {
         return new Date(data.dateOfBirth).toLocaleDateString();
     }
-    return patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString() : 'N/A';
+    return 'N/A';  // No fallback to plaintext
 };
 
 const cancelRequest = async (requestId) => {

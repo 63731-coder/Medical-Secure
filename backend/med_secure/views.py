@@ -554,10 +554,18 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
         # If doctor uploads - create pending request
         elif hasattr(user, 'doctor_profile'):
             patient_id = self.request.data.get('patient_id')
+            print(f"[DEBUG Doctor Upload] patient_id from request: {patient_id}")
+            print(f"[DEBUG Doctor Upload] Request data: {dict(self.request.data)}")
+            
             if not patient_id:
+                print(f"[ERROR] No patient_id provided")
                 raise drf_serializers.ValidationError(
                     "patient_id is required for doctor uploads"
                 )
+            
+            # Handle multipart form data (comes as list)
+            if isinstance(patient_id, list):
+                patient_id = patient_id[0]
             
             try:
                 patient = Patient.objects.get(id=patient_id)
@@ -570,21 +578,27 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                 
                 # Create pending request instead of immediate upload
                 file_obj = self.request.FILES.get('file')
-                file_name = self.request.data.get('name', '')
-                file_description = self.request.data.get('description', '')
                 
-                # Get encrypted metadata
+                # Get encrypted metadata (only use encrypted versions)
                 encrypted_file_name = self.request.data.get('encrypted_file_name')
                 encrypted_file_description = self.request.data.get('encrypted_file_description')
                 encrypted_file_date = self.request.data.get('encrypted_file_date')
+                
+                # Handle multipart form data for encrypted fields
+                if isinstance(encrypted_file_name, list):
+                    encrypted_file_name = encrypted_file_name[0] if encrypted_file_name else None
+                if isinstance(encrypted_file_description, list):
+                    encrypted_file_description = encrypted_file_description[0] if encrypted_file_description else None
+                if isinstance(encrypted_file_date, list):
+                    encrypted_file_date = encrypted_file_date[0] if encrypted_file_date else None
                 
                 FileActionRequest.objects.create(
                     patient=patient,
                     doctor=user.doctor_profile,
                     action_type='upload',
                     file_data=file_obj,
-                    file_name=file_name,
-                    file_description=file_description,
+                    file_name='',  # Security: only store encrypted version
+                    file_description='',  # Security: only store encrypted version
                     encrypted_file_name=encrypted_file_name,
                     encrypted_file_description=encrypted_file_description,
                     encrypted_file_date=encrypted_file_date,

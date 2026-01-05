@@ -15,7 +15,9 @@ export default {
       email: '',
       firstName: '',
       lastName: '',
+      userType: 'patient',  // Default to patient
       dateOfBirth: '',
+      organisation: '',
       errorMessage: '',
       loading: false
     }
@@ -32,8 +34,15 @@ export default {
           return
         }
 
-        if (!this.dateOfBirth) {
+        // Validation conditionnelle selon le type d'utilisateur
+        if (this.userType === 'patient' && !this.dateOfBirth) {
           this.errorMessage = 'Date of birth is required'
+          this.loading = false
+          return
+        }
+
+        if (this.userType === 'doctor' && !this.organisation) {
+          this.errorMessage = 'Organisation is required'
           this.loading = false
           return
         }
@@ -52,29 +61,39 @@ export default {
         deriveKeyFromUser(this.username)
         
         // Chiffrer les données sensibles côté client AVANT envoi
-        const encryptedDateOfBirth = encryptMetadata(this.dateOfBirth)
+        const encryptedDateOfBirth = this.userType === 'patient' ? encryptMetadata(this.dateOfBirth) : null
+        const encryptedOrganisation = this.userType === 'doctor' ? encryptMetadata(this.organisation) : null
         const encryptedFirstName = encryptMetadata(this.firstName)
         const encryptedLastName = encryptMetadata(this.lastName)
 
-        const response = await axios.post('http://localhost:8000/api/auth/register/', {
+        const payload = {
           username: this.username,
           email: this.email,
           password: tempPassword,
           first_name: this.firstName,  // Keep plaintext for Keycloak
           last_name: this.lastName,    // Keep plaintext for Keycloak
-          user_type: 'patient',  // Always patient
-          date_of_birth: this.dateOfBirth,  // Keep plaintext for validation
-          organisation: null,
+          user_type: this.userType,
           recaptcha_token: recaptchaToken,
           // Encrypted versions stored in Django DB
-          encrypted_date_of_birth: encryptedDateOfBirth,
           encrypted_first_name: encryptedFirstName,
           encrypted_last_name: encryptedLastName
-        })
+        }
+
+        // Ajouter les champs conditionnels
+        if (this.userType === 'patient') {
+          payload.date_of_birth = this.dateOfBirth  // Keep plaintext for validation
+          payload.encrypted_date_of_birth = encryptedDateOfBirth
+        } else if (this.userType === 'doctor') {
+          payload.organisation = this.organisation  // Keep plaintext for display
+          payload.encrypted_organisation = encryptedOrganisation
+        }
+
+        const response = await axios.post('http://localhost:8000/api/auth/register/', payload)
 
         if (response.data) {
-          // Afficher le message de succès
-          alert(`✅ Account created successfully!\n\n🔐 Next steps:\n1. Enter your username: ${this.username}\n2. Setup your Passkey (fingerprint, Face ID, or security key)\n3. Future logins: Just use your Passkey!\n\n🔒 Passwordless = Maximum Security`)
+          // Message de succès adapté au type d'utilisateur
+          const userTypeLabel = this.userType === 'patient' ? 'Patient' : 'Doctor'
+          alert(`✅ ${userTypeLabel} account created successfully!\n\n🔐 Next steps:\n1. Enter your username: ${this.username}\n2. Setup your Passkey (fingerprint, Face ID, or security key)\n3. Future logins: Just use your Passkey!\n\n🔒 Passwordless = Maximum Security`)
           
           // Stocker pour référence
           sessionStorage.setItem('new_user', this.username)
@@ -143,7 +162,13 @@ export default {
         {{ errorMessage }}
       </div>
 
-
+      <div>
+        <label class="block text-white text-sm font-bold mb-2">I am a *</label>
+        <select v-model="userType" required class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="patient">Patient</option>
+          <option value="doctor">Doctor</option>
+        </select>
+      </div>
 
       <div>
         <label class="block text-white text-sm font-bold mb-2">Username *</label>
@@ -165,14 +190,14 @@ export default {
         <input type="text" v-model="lastName" required placeholder="Doe" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
 
-      <div>
+      <div v-if="userType === 'patient'">
         <label class="block text-white text-sm font-bold mb-2">Date of Birth *</label>
-        <input type="date" v-model="dateOfBirth" required class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="date" v-model="dateOfBirth" :required="userType === 'patient'" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
 
       <div v-if="userType === 'doctor'">
         <label class="block text-white text-sm font-bold mb-2">Organisation *</label>
-        <input type="text" v-model="organisation" required placeholder="Hospital name" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="text" v-model="organisation" :required="userType === 'doctor'" placeholder="Hospital name" class="w-full px-3 py-2 bg-gray-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
 
       <div class="bg-blue-50 border border-blue-200 p-3 rounded text-center">
@@ -199,5 +224,20 @@ export default {
 <style scoped>
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
+}
+
+/* Style pour le select en mode sombre */
+select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1.5em 1.5em;
+  appearance: none;
+  padding-right: 2.5rem;
+}
+
+select option {
+  background-color: #374151;
+  color: white;
 }
 </style>

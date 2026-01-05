@@ -14,16 +14,24 @@ class KeycloakAuthentication(authentication.BaseAuthentication):
         auth = request.META.get("HTTP_AUTHORIZATION", "")
 
         if not auth.startswith("Bearer "):
+            print(f"[DEBUG KeycloakAuth] No Bearer token found. Auth header: {auth[:50] if auth else 'None'}")
             return None
 
         token = auth.split(" ")[1]
+        print(f"[DEBUG KeycloakAuth] Token received: {token[:50]}...")
 
         try:
             decoded = self._decode_token(token)
+            print(f"[DEBUG KeycloakAuth] Token decoded successfully")
             user = self._sync_user(decoded)
+            print(f"[DEBUG KeycloakAuth] User synced: {user.username}")
             return user, token
-        except JWTError:
+        except JWTError as e:
+            print(f"[DEBUG KeycloakAuth] JWT Error: {e}")
             raise exceptions.AuthenticationFailed("Invalid token")
+        except Exception as e:
+            print(f"[DEBUG KeycloakAuth] Unexpected error: {e}")
+            raise exceptions.AuthenticationFailed("Authentication failed")
 
     def _decode_token(self, token):
         key = self._get_public_key(token)

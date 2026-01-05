@@ -53,16 +53,22 @@ const decryptPatientsData = async () => {
             const encryptedPatientKey = keyResponse.data.encrypted_key;
             const patientKey = decryptSharedKey(encryptedPatientKey, currentDoctorId.value);
             
-            if (patientKey) {
-                const firstName = patient.encrypted_first_name ? decryptWithSharedKey(patient.encrypted_first_name, patientKey) : patient.user.first_name;
-                const lastName = patient.encrypted_last_name ? decryptWithSharedKey(patient.encrypted_last_name, patientKey) : patient.user.last_name;
+            if (patientKey && patient.encrypted_first_name && patient.encrypted_last_name) {
+                const firstName = decryptWithSharedKey(patient.encrypted_first_name, patientKey);
+                const lastName = decryptWithSharedKey(patient.encrypted_last_name, patientKey);
                 decryptedPatients.value[patient.id] = { firstName, lastName };
+            } else {
+                // Fallback to username if decryption fails
+                decryptedPatients.value[patient.id] = {
+                    firstName: patient.user.username,
+                    lastName: ''
+                };
             }
         } catch (e) {
             console.warn(`Failed to decrypt patient ${patient.id}:`, e);
             decryptedPatients.value[patient.id] = {
-                firstName: patient.user.first_name,
-                lastName: patient.user.last_name
+                firstName: patient.user.username,
+                lastName: ''
             };
         }
     }
@@ -72,9 +78,9 @@ const decryptPatientsData = async () => {
 const getPatientName = (patient) => {
     const data = decryptedPatients.value[patient.id];
     if (data) {
-        return `${data.firstName} ${data.lastName}`;
+        return `${data.firstName} ${data.lastName}`.trim();
     }
-    return `${patient.user.first_name} ${patient.user.last_name}`;
+    return `@${patient.user.username}`;
 };
 
 const handleFileChange = (event) => {

@@ -12,35 +12,46 @@ const loading = ref(true);
 
 // Computed properties for decrypted data
 const decryptedFirstName = computed(() => {
-    if (!profile.value?.encrypted_first_name) return user.value?.first_name || 'N/A';
-    try {
-        return decryptMetadata(profile.value.encrypted_first_name) || user.value?.first_name || 'N/A';
-    } catch (e) {
-        console.error('Failed to decrypt first name:', e);
-        return user.value?.first_name || 'Encrypted';
+    // For patients, use encrypted_data from response
+    if (userType.value === 'patient' && user.value?.encrypted_data?.encrypted_first_name) {
+        try {
+            return decryptMetadata(user.value.encrypted_data.encrypted_first_name) || 'N/A';
+        } catch (e) {
+            console.error('Failed to decrypt first name:', e);
+            return 'N/A';
+        }
     }
+    // For doctors, use plaintext
+    return user.value?.first_name || 'N/A';
 });
 
 const decryptedLastName = computed(() => {
-    if (!profile.value?.encrypted_last_name) return user.value?.last_name || 'N/A';
-    try {
-        return decryptMetadata(profile.value.encrypted_last_name) || user.value?.last_name || 'N/A';
-    } catch (e) {
-        console.error('Failed to decrypt last name:', e);
-        return user.value?.last_name || 'Encrypted';
+    // For patients, use encrypted_data from response
+    if (userType.value === 'patient' && user.value?.encrypted_data?.encrypted_last_name) {
+        try {
+            return decryptMetadata(user.value.encrypted_data.encrypted_last_name) || 'N/A';
+        } catch (e) {
+            console.error('Failed to decrypt last name:', e);
+            return 'N/A';
+        }
     }
+    // For doctors, use plaintext
+    return user.value?.last_name || 'N/A';
 });
 
 const decryptedDateOfBirth = computed(() => {
-    if (userType.value !== 'patient' || !profile.value) return null;
-    if (!profile.value.encrypted_date_of_birth) return profile.value.date_of_birth;
-    try {
-        const decrypted = decryptMetadata(profile.value.encrypted_date_of_birth);
-        return decrypted || profile.value.date_of_birth;
-    } catch (e) {
-        console.error('Failed to decrypt date of birth:', e);
-        return profile.value.date_of_birth || 'Encrypted';
+    if (userType.value !== 'patient') return null;
+    
+    // Try encrypted data first
+    if (user.value?.encrypted_data?.encrypted_date_of_birth) {
+        try {
+            return decryptMetadata(user.value.encrypted_data.encrypted_date_of_birth);
+        } catch (e) {
+            console.error('Failed to decrypt date of birth:', e);
+        }
     }
+    
+    return profile.value?.date_of_birth || null;
 });
 
 const decryptedOrganisation = computed(() => {

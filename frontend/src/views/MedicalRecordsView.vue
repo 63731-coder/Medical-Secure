@@ -26,6 +26,7 @@ const editFile = ref(null);
 const editName = ref('');
 const editDescription = ref('');
 const editLoading = ref(false);
+const editFileExtension = ref(''); // Store file extension
 const decryptedPatientName = ref(''); // Store decrypted patient name
 const decryptedPatientDOB = ref(''); // Store decrypted date of birth
 
@@ -58,19 +59,21 @@ const decryptPatientData = async () => {
         const encryptedPatientKey = keyResponse.data.encrypted_key;
         const patientKey = decryptSharedKey(encryptedPatientKey, currentDoctorId.value);
         
-        if (patientKey) {
-            decryptedPatientName.value = patient.value.encrypted_first_name && patient.value.encrypted_last_name
-                ? `${decryptWithSharedKey(patient.value.encrypted_first_name, patientKey)} ${decryptWithSharedKey(patient.value.encrypted_last_name, patientKey)}`
-                : `${patient.value.user.first_name} ${patient.value.user.last_name}`;
+        if (patientKey && patient.value.encrypted_first_name && patient.value.encrypted_last_name) {
+            decryptedPatientName.value = `${decryptWithSharedKey(patient.value.encrypted_first_name, patientKey)} ${decryptWithSharedKey(patient.value.encrypted_last_name, patientKey)}`;
             
             decryptedPatientDOB.value = patient.value.encrypted_date_of_birth
                 ? decryptWithSharedKey(patient.value.encrypted_date_of_birth, patientKey)
-                : patient.value.date_of_birth;
+                : 'N/A';
+        } else {
+            // Fallback to username if decryption fails
+            decryptedPatientName.value = `@${patient.value.user.username}`;
+            decryptedPatientDOB.value = 'N/A';
         }
     } catch (e) {
         console.warn('Failed to decrypt patient data:', e);
-        decryptedPatientName.value = `${patient.value.user.first_name} ${patient.value.user.last_name}`;
-        decryptedPatientDOB.value = patient.value.date_of_birth;
+        decryptedPatientName.value = `@${patient.value.user.username}`;
+        decryptedPatientDOB.value = 'N/A';
     }
 };
 
@@ -239,7 +242,18 @@ const getDeleteModalMessage = () => {
 
 const openEditModal = (record) => {
     recordToEdit.value = record;
-    editName.value = record.name.replace('.enc', '');
+    const cleanName = record.name.replace('.enc', '');
+    
+    // Extract extension from current file name
+    const lastDotIndex = cleanName.lastIndexOf('.');
+    if (lastDotIndex !== -1) {
+        editFileExtension.value = cleanName.substring(lastDotIndex);
+        editName.value = cleanName.substring(0, lastDotIndex);
+    } else {
+        editFileExtension.value = '';
+        editName.value = cleanName;
+    }
+    
     editDescription.value = record.description || '';
     editFile.value = null;
     showEditModal.value = true;
@@ -247,6 +261,27 @@ const openEditModal = (record) => {
 
 const handleEditFileChange = (event) => {
     editFile.value = event.target.files[0];
+    
+    if (editFile.value) {
+        const fileName = editFile.value.name;
+        const lastDotIndex = fileName.lastIndexOf('.');
+        
+        if (lastDotIndex !== -1) {
+            editFileExtension.value = fileName.substring(lastDotIndex); // e.g., ".pdf"
+            const nameWithoutExt = fileName.substring(0, lastDotIndex);
+            
+            // Update editName if it doesn't already have the extension
+            if (!editName.value.endsWith(editFileExtension.value)) {
+                // Remove old extension if any
+                const oldExtIndex = editName.value.lastIndexOf('.');
+                if (oldExtIndex !== -1) {
+                    editName.value = editName.value.substring(0, oldExtIndex);
+                }
+            }
+        } else {
+            editFileExtension.value = "";
+        }
+    }
 };
 
 const saveEdit = async () => {
@@ -259,7 +294,9 @@ const saveEdit = async () => {
     
     try {
         const formData = new FormData();
-        formData.append('name', editName.value);
+        // Combine name and extension
+        const fullName = editName.value + editFileExtension.value;
+        formData.append('name', fullName);
         formData.append('description', editDescription.value);
         
         // Encrypt metadata before sending
@@ -273,7 +310,7 @@ const saveEdit = async () => {
             getCurrentKey();
         
         const currentDate = new Date().toISOString();
-        const encryptedName = encryptWithSharedKey(editName.value, encryptionKey) || encryptMetadata(editName.value);
+        const encryptedName = encryptWithSharedKey(fullName, encryptionKey) || encryptMetadata(fullName);
         const encryptedDescription = encryptWithSharedKey(editDescription.value, encryptionKey) || encryptMetadata(editDescription.value);
         const encryptedDate = encryptWithSharedKey(currentDate, encryptionKey) || encryptMetadata(currentDate);
         
@@ -380,6 +417,7 @@ const cancelEdit = () => {
     showEditModal.value = false;
     recordToEdit.value = null;
     editFile.value = null;
+    editFileExtension.value = '';
 };
 
 onMounted(async () => {
@@ -509,9 +547,16 @@ onMounted(async () => {
                     <div class="px-6 py-4 space-y-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Document Title</label>
-                            <input v-model="editName" type="text" required
-                                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder="e.g., Blood Test Results">
+                            <div class="flex items-center gap-2">
+                                <input v-model="editName" type="text" required
+                                    class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="e.g., Blood Test Results">
+                                <span v-if="editFileExtension" 
+                                    class="px-3 py-2 bg-blue-100 text-blue-800 rounded-lg font-medium text-sm">
+                                    {{ editFileExtension }}
+                                </span>
+                            </div>
+                            <p v-if="editFileExtension" class="text-xs text-gray-500 mt-1">Extension automatically added from file</p>
                         </div>
                         
                         <div>

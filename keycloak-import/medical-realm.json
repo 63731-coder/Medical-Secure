@@ -489,54 +489,6 @@
       ],
       "notBefore": 0,
       "groups": []
-    },
-    {
-      "username": "dr.martin",
-      "enabled": true,
-      "emailVerified": true,
-      "firstName": "Marie",
-      "lastName": "Martin",
-      "email": "marie.martin@hospital.fr",
-      "realmRoles": [
-        "doctor",
-        "default-roles-medical-realm"
-      ],
-      "requiredActions": [
-        "webauthn-register"
-      ],
-      "groups": []
-    },
-    {
-      "username": "dr.dubois",
-      "enabled": true,
-      "emailVerified": true,
-      "firstName": "Pierre",
-      "lastName": "Dubois",
-      "email": "pierre.dubois@hospital.fr",
-      "realmRoles": [
-        "doctor",
-        "default-roles-medical-realm"
-      ],
-      "requiredActions": [
-        "webauthn-register"
-      ],
-      "groups": []
-    },
-    {
-      "username": "dr.bernard",
-      "enabled": true,
-      "emailVerified": true,
-      "firstName": "Sophie",
-      "lastName": "Bernard",
-      "email": "sophie.bernard@hospital.fr",
-      "realmRoles": [
-        "doctor",
-        "default-roles-medical-realm"
-      ],
-      "requiredActions": [
-        "webauthn-register"
-      ],
-      "groups": []
     }
   ],
   "scopeMappings": [

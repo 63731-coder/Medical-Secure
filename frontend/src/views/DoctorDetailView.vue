@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import ConfirmModal from '../components/ConfirmModal.vue';
-import { decryptMetadata } from '../utils/crypto';
 
 const route = useRoute();
 const router = useRouter();
@@ -67,38 +66,22 @@ const cancelRevoke = () => {
 
 const goBack = () => router.back();
 
-// Decrypt doctor name from encrypted fields
+// Get doctor name from user fields (already in plaintext from backend)
 const getDoctorName = (doc) => {
     if (!doc) return { firstName: '', lastName: '' };
-    try {
-        if (doc.encrypted_first_name && doc.encrypted_last_name) {
-            const firstName = decryptMetadata(doc.encrypted_first_name);
-            const lastName = decryptMetadata(doc.encrypted_last_name);
-            if (firstName && lastName && firstName !== '[ENCRYPTED]' && lastName !== '[ENCRYPTED]') {
-                return { firstName, lastName };
-            }
-        }
-        // Fallback to username if encrypted fields don't work
-        return { firstName: '@' + doc.user.username, lastName: '' };
-    } catch (e) {
-        return { firstName: '@' + doc.user.username, lastName: '' };
+    // Use Django User model fields (backend sends plaintext)
+    if (doc.user.first_name && doc.user.last_name) {
+        return { firstName: doc.user.first_name, lastName: doc.user.last_name };
     }
+    // Fallback to username if names are not set
+    return { firstName: doc.user.username, lastName: '' };
 };
 
-// Decrypt doctor organisation
+// Get doctor organisation (already in plaintext from backend)
 const getDoctorOrganisation = (doc) => {
     if (!doc) return '';
-    try {
-        if (doc.encrypted_organisation) {
-            const org = decryptMetadata(doc.encrypted_organisation);
-            if (org && org !== '[ENCRYPTED]') {
-                return org;
-            }
-        }
-        return doc.user.email || 'Medical Professional';
-    } catch (e) {
-        return doc.user.email || 'Medical Professional';
-    }
+    // Use organisation field (backend sends plaintext)
+    return doc.organisation || 'Medical Professional';
 };
 </script>
 

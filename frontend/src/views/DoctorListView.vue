@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';
 import ConfirmModal from '../components/ConfirmModal.vue';
-import { decryptMetadata } from '../utils/crypto';
 
 const doctors = ref([]);
 const allDoctors = ref([]);
@@ -76,36 +75,20 @@ const cancelRevoke = () => {
     doctorToRevoke.value = null;
 };
 
-// Decrypt doctor name from encrypted fields
+// Get doctor name from user fields (already in plaintext from backend)
 const getDoctorName = (doctor) => {
-    try {
-        if (doctor.encrypted_first_name && doctor.encrypted_last_name) {
-            const firstName = decryptMetadata(doctor.encrypted_first_name);
-            const lastName = decryptMetadata(doctor.encrypted_last_name);
-            if (firstName && lastName && firstName !== '[ENCRYPTED]' && lastName !== '[ENCRYPTED]') {
-                return { firstName, lastName };
-            }
-        }
-        // Fallback to username if encrypted fields don't work
-        return { firstName: '@' + doctor.user.username, lastName: '' };
-    } catch (e) {
-        return { firstName: '@' + doctor.user.username, lastName: '' };
+    // Use Django User model fields (backend sends plaintext)
+    if (doctor.user.first_name && doctor.user.last_name) {
+        return { firstName: doctor.user.first_name, lastName: doctor.user.last_name };
     }
+    // Fallback to username if names are not set
+    return { firstName: doctor.user.username, lastName: '' };
 };
 
-// Decrypt doctor organisation
+// Get doctor organisation (already in plaintext from backend)
 const getDoctorOrganisation = (doctor) => {
-    try {
-        if (doctor.encrypted_organisation) {
-            const org = decryptMetadata(doctor.encrypted_organisation);
-            if (org && org !== '[ENCRYPTED]') {
-                return org;
-            }
-        }
-        return doctor.user.email || 'Medical Professional';
-    } catch (e) {
-        return doctor.user.email || 'Medical Professional';
-    }
+    // Use organisation field (backend sends plaintext)
+    return doctor.organisation || 'Medical Professional';
 };
 
 
