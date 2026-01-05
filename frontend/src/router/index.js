@@ -44,17 +44,20 @@ const router = createRouter({
         {
             path: '/doctors',
             name: 'doctor-list',
-            component: () => import('../views/DoctorListView.vue')
+            component: () => import('../views/DoctorListView.vue'),
+            meta: { requiresPatient: true }
         },
         {
             path: '/search-doctors',
             name: 'search-doctors',
-            component: () => import('../views/SearchDoctorsView.vue')
+            component: () => import('../views/SearchDoctorsView.vue'),
+            meta: { requiresPatient: true }
         },
         {
             path: '/doctors/:id', // Route dynamique
             name: 'doctor-detail',
-            component: () => import('../views/DoctorDetailView.vue')
+            component: () => import('../views/DoctorDetailView.vue'),
+            meta: { requiresPatient: true }
         },
         {
             path: '/upload',
@@ -91,12 +94,14 @@ const router = createRouter({
         {
             path: '/doctor-requests',
             name: 'doctor-requests',
-            component: () => import('../views/DoctorRequestsView.vue')
+            component: () => import('../views/DoctorRequestsView.vue'),
+            meta: { requiresPatient: true }
         },
         {
             path: '/file-action-requests',
             name: 'file-action-requests',
-            component: () => import('../views/FileActionRequestsView.vue')
+            component: () => import('../views/FileActionRequestsView.vue'),
+            meta: { requiresPatient: true }
         },
     ]
 })
@@ -115,12 +120,22 @@ router.beforeEach(async (to, from, next) => {
         return next('/login');
     }
 
-    // Check if route requires doctor role
-    if (to.meta.requiresDoctor) {
+    // Check if route requires specific user type
+    if (to.meta.requiresDoctor || to.meta.requiresPatient) {
         try {
             const response = await api.getProfile();
-            if (response.data.user_type !== 'doctor') {
-                return next('/'); // Redirect to home if not a doctor
+            const userType = response.data.user_type;
+            
+            // Block doctors from patient-only routes
+            if (to.meta.requiresPatient && userType !== 'patient') {
+                console.warn('Access denied: Patient-only route');
+                return next('/'); // Redirect to home
+            }
+            
+            // Block patients from doctor-only routes
+            if (to.meta.requiresDoctor && userType !== 'doctor') {
+                console.warn('Access denied: Doctor-only route');
+                return next('/'); // Redirect to home
             }
         } catch (error) {
             console.error('Failed to check user type:', error);

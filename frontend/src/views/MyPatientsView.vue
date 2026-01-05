@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router';
 import api from '../services/api';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import StatusAlert from '../components/StatusAlert.vue';
+import { decryptWithSharedKey, decryptSharedKey } from '../utils/crypto';
 
 const patients = ref([]);
 const loading = ref(true);
@@ -11,6 +12,8 @@ const error = ref('');
 const success = ref('');
 const showRemoveModal = ref(false);
 const patientToRemove = ref(null);
+const decryptedPatients = ref({}); // Store decrypted patient data as reactive object
+const currentDoctorId = ref(null); // Store doctor ID for key decryption
 
 onMounted(async () => {
     await fetchData();
@@ -20,9 +23,16 @@ const fetchData = async () => {
     try {
         loading.value = true;
         
+        // Get doctor profile
+        const profileRes = await api.get('/auth/me/');
+        currentDoctorId.value = profileRes.data.profile.id;
+        
         // Get doctor's patients
         const patientsRes = await api.getPatients();
         patients.value = patientsRes.data;
+        
+        // Decrypt patient data using shared keys
+        await decryptPatientsData();
         
         loading.value = false;
     } catch (e) {
@@ -30,6 +40,79 @@ const fetchData = async () => {
         error.value = "Failed to load data.";
         loading.value = false;
     }
+};
+
+// Decrypt patient personal information using shared keys
+const decryptPatientsData = async () => {
+    console.log('[DEBUG] Starting to decrypt patients data...');
+    console.log('[DEBUG] Current doctor ID:', currentDoctorId.value);
+    console.log('[DEBUG] Number of patients:', patients.value.length);
+    
+    for (const patient of patients.value) {
+        try {
+            console.log(`[DEBUG] Processing patient: ${patient.user.username} (ID: ${patient.id})`);
+            
+            // Get shared key for this patient (encrypted with doctor's derived key)
+            const keyResponse = await api.get(`/get-shared-key/?patient_id=${patient.id}`);
+            const encryptedPatientKey = keyResponse.data.encrypted_key;
+            console.log(`[DEBUG] Got encrypted key (first 50 chars): ${encryptedPatientKey.substring(0, 50)}`);
+            
+            // Step 1: Decrypt the patient's key using doctor's ID
+            const patientKey = decryptSharedKey(encryptedPatientKey, currentDoctorId.value);
+            console.log(`[DEBUG] Decrypted patient key:`, patientKey ? 'SUCCESS' : 'FAILED');
+            
+            if (!patientKey) {
+                throw new Error('Failed to decrypt patient key');
+            }
+            
+            // Step 2: Decrypt patient data with patient's key
+            console.log(`[DEBUG] encrypted_first_name exists: ${!!patient.encrypted_first_name}`);
+            console.log(`[DEBUG] encrypted_last_name exists: ${!!patient.encrypted_last_name}`);
+            
+            const firstName = patient.encrypted_first_name ? decryptWithSharedKey(patient.encrypted_first_name, patientKey) : patient.user.first_name;
+            const lastName = patient.encrypted_last_name ? decryptWithSharedKey(patient.encrypted_last_name, patientKey) : patient.user.last_name;
+            const dateOfBirth = patient.encrypted_date_of_birth ? decryptWithSharedKey(patient.encrypted_date_of_birth, patientKey) : patient.date_of_birth;
+            
+            console.log(`[DEBUG] Decrypted firstName: ${firstName}`);
+            console.log(`[DEBUG] Decrypted lastName: ${lastName}`);
+            console.log(`[DEBUG] Decrypted dateOfBirth: ${dateOfBirth}`);
+            console.log(`[DEBUG] Original date_of_birth: ${patient.date_of_birth}`);
+            
+            const decryptedData = { firstName, lastName, dateOfBirth };
+            
+            // Use object assignment for Vue reactivity
+            decryptedPatients.value[patient.id] = decryptedData;
+        } catch (e) {
+            console.error(`[ERROR] Failed to decrypt patient ${patient.id} data:`, e);
+            // Fallback to encrypted placeholders
+            decryptedPatients.value[patient.id] = {
+                firstName: patient.user.first_name,
+                lastName: patient.user.last_name,
+                dateOfBirth: patient.date_of_birth
+            };
+        }
+    }
+    console.log('[DEBUG] Finished decrypting patients data');
+    console.log('[DEBUG] Decrypted patients object:', decryptedPatients.value);
+};
+
+// Get decrypted patient name
+const getPatientName = (patient) => {
+    const data = decryptedPatients.value[patient.id];
+    console.log(`[DEBUG] getPatientName for ${patient.id}:`, data);
+    if (data) {
+        return `${data.firstName} ${data.lastName}`;
+    }
+    return `${patient.user.first_name} ${patient.user.last_name}`;
+};
+
+// Get decrypted patient date of birth
+const getPatientDOB = (patient) => {
+    const data = decryptedPatients.value[patient.id];
+    if (data && data.dateOfBirth) {
+        return new Date(data.dateOfBirth).toLocaleDateString();
+    }
+    return patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString() : 'N/A';
 };
 
 const cancelRequest = async (requestId) => {
@@ -58,7 +141,7 @@ const confirmRemovePatient = async () => {
             patient_id: patient.id,
             action_type: 'remove'
         });
-        success.value = `Removal request sent to ${patient.user.first_name} ${patient.user.last_name}. Waiting for approval.`;
+        success.value = `Removal request sent for ${getPatientName(patient)}.`;
         error.value = '';
         await fetchData();
     } catch (e) {
@@ -111,11 +194,11 @@ const cancelRemovePatient = () => {
                 <div class="flex items-start justify-between">
                     <div class="flex-1">
                         <h3 class="font-bold text-lg text-gray-900">
-                            {{ patient.user.first_name }} {{ patient.user.last_name }}
+                            {{ getPatientName(patient) }}
                         </h3>
                         <p class="text-sm text-gray-500">@{{ patient.user.username }}</p>
                         <p class="text-sm text-gray-500 mt-1">
-                            Date of Birth: {{ new Date(patient.date_of_birth).toLocaleDateString() }}
+                            Date of Birth: {{ getPatientDOB(patient) }}
                         </p>
                     </div>
                     <div class="flex gap-2">
@@ -143,7 +226,7 @@ const cancelRemovePatient = () => {
         <ConfirmModal
             :show="showRemoveModal"
             :title="'Remove Patient'"
-            :message="patientToRemove ? `Request to remove ${patientToRemove.user.first_name} ${patientToRemove.user.last_name} from your patients list? The patient must approve this action.` : ''"
+            :message="patientToRemove ? `Request to remove ${getPatientName(patientToRemove)} from your patients list? The patient must approve this action.` : ''"
             :confirmText="'Send Request'"
             :cancelText="'Cancel'"
             :isDangerous="true"

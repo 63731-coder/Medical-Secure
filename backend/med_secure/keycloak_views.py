@@ -29,6 +29,12 @@ class KeycloakRegisterView(APIView):
         # Additional fields
         date_of_birth = request.data.get('date_of_birth')  # for patient
         organisation = request.data.get('organisation')  # for doctor
+        
+        # Encrypted sensitive data (client-side encrypted)
+        encrypted_date_of_birth = request.data.get('encrypted_date_of_birth')
+        encrypted_first_name = request.data.get('encrypted_first_name')
+        encrypted_last_name = request.data.get('encrypted_last_name')
+        encrypted_organisation = request.data.get('encrypted_organisation')
 
         # Validation
         if not all([username, email, password, user_type]):
@@ -151,11 +157,12 @@ class KeycloakRegisterView(APIView):
 
         # Create user in local database
         try:
+            # NEVER store sensitive data in plaintext - use anonymous placeholders
             django_user = User.objects.create_user(
                 username=username,
                 email=email,
-                first_name=first_name,
-                last_name=last_name
+                first_name='[ENCRYPTED]',  # Real data in encrypted_first_name
+                last_name='[ENCRYPTED]'     # Real data in encrypted_last_name
             )
             django_user.set_unusable_password()  # Password managed by Keycloak
             django_user.save()
@@ -165,13 +172,19 @@ class KeycloakRegisterView(APIView):
                 Patient.objects.create(
                     user=django_user,
                     keycloak_id=keycloak_id,
-                    date_of_birth=date_of_birth
+                    date_of_birth=None,  # Real data ONLY in encrypted_date_of_birth
+                    encrypted_date_of_birth=encrypted_date_of_birth,
+                    encrypted_first_name=encrypted_first_name,
+                    encrypted_last_name=encrypted_last_name
                 )
             else:  # doctor
                 Doctor.objects.create(
                     user=django_user,
                     keycloak_id=keycloak_id,
-                    organisation=organisation or 'Unknown'
+                    organisation='[ENCRYPTED]',  # Real data ONLY in encrypted_organisation
+                    encrypted_organisation=encrypted_organisation,
+                    encrypted_first_name=encrypted_first_name,
+                    encrypted_last_name=encrypted_last_name
                 )
 
             return Response({

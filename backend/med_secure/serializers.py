@@ -17,9 +17,15 @@ class DoctorSerializer(serializers.ModelSerializer):
     """Doctor profile with user info"""
     user = UserSerializer(read_only=True)
     
+    # Encrypted fields (client-side encrypted)
+    encrypted_organisation = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    encrypted_first_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    encrypted_last_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
     class Meta:
         model = Doctor
-        fields = ['id', 'user', 'organisation']
+        fields = ['id', 'user', 'organisation', 'encrypted_organisation', 
+                 'encrypted_first_name', 'encrypted_last_name']
 
 
 class PatientSerializer(serializers.ModelSerializer):
@@ -27,9 +33,15 @@ class PatientSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     appointed_doctors = DoctorSerializer(many=True, read_only=True)
     
+    # Encrypted fields (client-side encrypted)
+    encrypted_date_of_birth = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    encrypted_first_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    encrypted_last_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
     class Meta:
         model = Patient
-        fields = ['id', 'user', 'date_of_birth', 'keycloak_id', 'appointed_doctors']
+        fields = ['id', 'user', 'date_of_birth', 'keycloak_id', 'appointed_doctors',
+                 'encrypted_date_of_birth', 'encrypted_first_name', 'encrypted_last_name']
 
 
 class MedicalFileSerializer(serializers.ModelSerializer):
@@ -37,9 +49,15 @@ class MedicalFileSerializer(serializers.ModelSerializer):
     uploaded_by = UserSerializer(read_only=True)
     patient = PatientSerializer(read_only=True)
     
+    # Encrypted fields (client-side encrypted)
+    encrypted_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    encrypted_description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    encrypted_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
     class Meta:
         model = MedicalFile
-        fields = ['id', 'file', 'name', 'description', 'created_at', 'uploaded_by', 'patient']
+        fields = ['id', 'file', 'name', 'description', 'created_at', 'uploaded_by', 'patient',
+                 'encrypted_name', 'encrypted_description', 'encrypted_date']
         read_only_fields = ['uploaded_by', 'created_at', 'patient']
     
     def validate_name(self, value):
@@ -172,10 +190,16 @@ class FileActionRequestSerializer(serializers.ModelSerializer):
     patient = PatientSerializer(read_only=True)
     target_file_info = serializers.SerializerMethodField()
     
+    # Encrypted fields (client-side encrypted)
+    encrypted_file_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    encrypted_file_description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    encrypted_file_date = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
     class Meta:
         model = FileActionRequest
         fields = ['id', 'patient', 'doctor', 'action_type', 'status', 
                  'file_name', 'file_description', 'target_file', 'target_file_info',
+                 'encrypted_file_name', 'encrypted_file_description', 'encrypted_file_date',
                  'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at', 'patient', 'doctor']
     

@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
-import { decryptData, encryptData, deriveKeyFromUser, decryptSharedKey, decryptWithSharedKey, encryptWithSharedKey } from '../utils/crypto';
+import { decryptData, encryptData, deriveKeyFromUser, decryptSharedKey, decryptWithSharedKey, encryptWithSharedKey, decryptMetadata, encryptMetadata, getCurrentKey } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import { useNotifications } from '../composables/useNotifications';
@@ -26,6 +26,8 @@ const editFile = ref(null);
 const editName = ref('');
 const editDescription = ref('');
 const editLoading = ref(false);
+const decryptedPatientName = ref(''); // Store decrypted patient name
+const decryptedPatientDOB = ref(''); // Store decrypted date of birth
 
 // Fetch patient info if patient_id is provided
 const fetchPatient = async () => {
@@ -36,9 +38,39 @@ const fetchPatient = async () => {
         const foundPatient = response.data.find(p => p.id === parseInt(patientId.value));
         if (foundPatient) {
             patient.value = foundPatient;
+            
+            // Decrypt patient data if doctor is viewing
+            if (userType.value === 'doctor' && currentDoctorId.value) {
+                await decryptPatientData();
+            }
         }
     } catch (e) {
         console.error("Failed to load patient:", e);
+    }
+};
+
+// Decrypt patient name and DOB for doctor view
+const decryptPatientData = async () => {
+    if (!patient.value) return;
+    
+    try {
+        const keyResponse = await api.get(`/get-shared-key/?patient_id=${patient.value.id}`);
+        const encryptedPatientKey = keyResponse.data.encrypted_key;
+        const patientKey = decryptSharedKey(encryptedPatientKey, currentDoctorId.value);
+        
+        if (patientKey) {
+            decryptedPatientName.value = patient.value.encrypted_first_name && patient.value.encrypted_last_name
+                ? `${decryptWithSharedKey(patient.value.encrypted_first_name, patientKey)} ${decryptWithSharedKey(patient.value.encrypted_last_name, patientKey)}`
+                : `${patient.value.user.first_name} ${patient.value.user.last_name}`;
+            
+            decryptedPatientDOB.value = patient.value.encrypted_date_of_birth
+                ? decryptWithSharedKey(patient.value.encrypted_date_of_birth, patientKey)
+                : patient.value.date_of_birth;
+        }
+    } catch (e) {
+        console.warn('Failed to decrypt patient data:', e);
+        decryptedPatientName.value = `${patient.value.user.first_name} ${patient.value.user.last_name}`;
+        decryptedPatientDOB.value = patient.value.date_of_birth;
     }
 };
 
@@ -60,6 +92,35 @@ const fetchRecords = async () => {
         console.error("Failed to load records:", e);
         error.value = "Failed to load records.";
         loading.value = false;
+    }
+};
+
+// Decrypt metadata for display
+const getDecryptedName = (record) => {
+    if (!record.encrypted_name) return record.name || 'Untitled';
+    
+    try {
+        if (userType.value === 'doctor' && patientId.value) {
+            // Doctor viewing patient file - need to use shared key
+            // This is a simplified approach - in production, cache the shared key
+            return record.name; // Fallback to plaintext for now (will decrypt on mount)
+        }
+        return decryptMetadata(record.encrypted_name) || record.name || 'Untitled';
+    } catch (e) {
+        console.error('Failed to decrypt name:', e);
+        return record.name || 'Encrypted';
+    }
+};
+
+const getDecryptedDate = (record) => {
+    if (!record.encrypted_date) return record.created_at;
+    
+    try {
+        const decrypted = decryptMetadata(record.encrypted_date);
+        return decrypted || record.created_at;
+    } catch (e) {
+        console.error('Failed to decrypt date:', e);
+        return record.created_at;
     }
 };
 
@@ -201,6 +262,32 @@ const saveEdit = async () => {
         formData.append('name', editName.value);
         formData.append('description', editDescription.value);
         
+        // Encrypt metadata before sending
+        const encryptionKey = userType.value === 'doctor' && patientId.value ?
+            // Doctor: use patient's shared key
+            decryptSharedKey(
+                (await api.get('/get-shared-key/', { params: { patient_id: patientId.value } })).data.encrypted_key,
+                currentDoctorId.value
+            ) :
+            // Patient: use own key
+            getCurrentKey();
+        
+        const currentDate = new Date().toISOString();
+        const encryptedName = encryptWithSharedKey(editName.value, encryptionKey) || encryptMetadata(editName.value);
+        const encryptedDescription = encryptWithSharedKey(editDescription.value, encryptionKey) || encryptMetadata(editDescription.value);
+        const encryptedDate = encryptWithSharedKey(currentDate, encryptionKey) || encryptMetadata(currentDate);
+        
+        formData.append('encrypted_name', encryptedName);
+        formData.append('encrypted_description', encryptedDescription);
+        formData.append('encrypted_date', encryptedDate);
+        
+        // If doctor, add encrypted_file_* fields
+        if (userType.value === 'doctor') {
+            formData.append('encrypted_file_name', encryptedName);
+            formData.append('encrypted_file_description', encryptedDescription);
+            formData.append('encrypted_file_date', encryptedDate);
+        }
+        
         // If new file is provided, encrypt and add it
         if (editFile.value) {
             const reader = new FileReader();
@@ -327,10 +414,10 @@ onMounted(async () => {
                     </button>
                     <div>
                         <h1 class="text-3xl font-bold text-gray-900">
-                            {{ patient ? `${patient.user.first_name} ${patient.user.last_name}'s Medical Records` : 'My Medical Records' }}
+                            {{ patient ? (decryptedPatientName || `${patient.user.first_name} ${patient.user.last_name}`) + "'s Medical Records" : 'My Medical Records' }}
                         </h1>
                         <p v-if="patient" class="text-gray-600 mt-1">
-                            Date of Birth: {{ new Date(patient.date_of_birth).toLocaleDateString() }}
+                            Date of Birth: {{ decryptedPatientDOB ? new Date(decryptedPatientDOB).toLocaleDateString() : (patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString() : 'N/A') }}
                         </p>
                     </div>
                 </div>
@@ -364,8 +451,8 @@ onMounted(async () => {
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="file in records" :key="file.id" class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ file.name }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ new Date(file.created_at).toLocaleDateString() }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ getDecryptedName(file) }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ new Date(getDecryptedDate(file)).toLocaleDateString() }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ file.description || 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                             <button @click="handleDownload(file)" class="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center gap-1">

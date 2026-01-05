@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import api from '../services/api';
 import StatusAlert from '../components/StatusAlert.vue';
 import { useNotifications } from '../composables/useNotifications';
+import { decryptMetadata } from '../utils/crypto';
 
 const { success: notifySuccess, error: notifyError, warning: notifyWarning } = useNotifications();
 const fileActionRequests = ref([]);
@@ -41,7 +42,7 @@ const fetchFileActionRequests = async () => {
 const approveRequest = async (request) => {
     try {
         await api.approveFileAction(request.id);
-        const message = `${getActionText(request.action_type)} request from Dr. ${request.doctor.user.last_name} has been approved.`;
+        const message = `${getActionText(request.action_type)} request from Dr. ${getDoctorName(request.doctor)} has been approved.`;
         success.value = message;
         notifySuccess(message);
         error.value = '';
@@ -57,7 +58,7 @@ const approveRequest = async (request) => {
 const rejectRequest = async (request) => {
     try {
         await api.rejectFileAction(request.id);
-        success.value = `${getActionText(request.action_type)} request from Dr. ${request.doctor.user.last_name} has been rejected.`;
+        success.value = `${getActionText(request.action_type)} request from Dr. ${getDoctorName(request.doctor)} has been rejected.`;
         error.value = '';
         await fetchFileActionRequests();
     } catch (e) {
@@ -82,6 +83,40 @@ const getActionColor = (actionType) => {
         'delete': 'red'
     };
     return colors[actionType] || 'gray';
+};
+
+// Decrypt doctor name from encrypted fields
+const getDoctorName = (doctor) => {
+    if (!doctor) return '@unknown';
+    try {
+        if (doctor.encrypted_first_name && doctor.encrypted_last_name) {
+            const firstName = decryptMetadata(doctor.encrypted_first_name);
+            const lastName = decryptMetadata(doctor.encrypted_last_name);
+            if (firstName && lastName && firstName !== '[ENCRYPTED]' && lastName !== '[ENCRYPTED]') {
+                return `${firstName} ${lastName}`;
+            }
+        }
+        // Fallback to username
+        return '@' + doctor.user.username;
+    } catch (e) {
+        return '@' + doctor.user.username;
+    }
+};
+
+// Decrypt doctor organisation
+const getDoctorOrganisation = (doctor) => {
+    if (!doctor) return '';
+    try {
+        if (doctor.encrypted_organisation) {
+            const org = decryptMetadata(doctor.encrypted_organisation);
+            if (org && org !== '[ENCRYPTED]') {
+                return org;
+            }
+        }
+        return doctor.user.email || 'Medical Professional';
+    } catch (e) {
+        return doctor.user.email || 'Medical Professional';
+    }
 };
 
 const getActionIcon = (actionType) => {
@@ -136,9 +171,9 @@ const getActionIcon = (actionType) => {
                                 {{ getActionText(request.action_type) }} File
                             </h3>
                             <p class="text-sm text-gray-600">
-                                Requested by <strong>Dr. {{ request.doctor.user.first_name }} {{ request.doctor.user.last_name }}</strong>
+                                Requested by <strong>Dr. {{ getDoctorName(request.doctor) }}</strong>
                             </p>
-                            <p class="text-sm text-gray-600">{{ request.doctor.organisation }}</p>
+                            <p class="text-sm text-gray-600">{{ getDoctorOrganisation(request.doctor) }}</p>
                             <p class="text-xs text-gray-500 mt-2">
                                 Request sent {{ new Date(request.created_at).toLocaleDateString() }}
                             </p>

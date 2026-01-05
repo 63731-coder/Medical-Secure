@@ -24,16 +24,17 @@ export const deriveKeyFromPassword = (password, salt = 'mon_sel_fixe_pour_le_pro
 };
 
 // Generate deterministic encryption key from user identity (for Keycloak passwordless)
-export const deriveKeyFromUser = (username, keycloakId) => {
-    // Use username + keycloak_id as seed for deterministic key
+export const deriveKeyFromUser = (username, keycloakId = null) => {
+    // Use ONLY username as seed for deterministic key (keycloakId not available during registration)
     // This allows the same user to decrypt their files across sessions
-    const seed = `${username}:${keycloakId}:medical-secure`;
+    const seed = `${username}:medical-secure-v2`;
     const key = CryptoJS.PBKDF2(seed, 'keycloak-medical-salt', {
         keySize: 256 / 32,
         iterations: 100000  // NIST recommande minimum 100k iterations
     });
     SECRET_KEY = key.toString();
     sessionStorage.setItem('encryptionKey', SECRET_KEY);
+    return SECRET_KEY; // Return key for sharing
 };
 
 // Clear encryption key on logout
@@ -158,4 +159,49 @@ export const encryptWithSharedKey = (data, sharedKey) => {
         return null;
     }
 };
+
+// ===========================
+// METADATA ENCRYPTION UTILITIES
+// ===========================
+
+/**
+ * Encrypt sensitive metadata with user's current encryption key
+ * Used for file names, descriptions, dates, personal info
+ */
+export const encryptMetadata = (plainText) => {
+    if (!plainText) return null;
+    return encryptData(String(plainText));
+};
+
+/**
+ * Decrypt sensitive metadata with user's current encryption key
+ */
+export const decryptMetadata = (encryptedText) => {
+    if (!encryptedText) return null;
+    return decryptData(encryptedText);
+};
+
+/**
+ * Encrypt metadata with a specific shared key (for doctor operations)
+ */
+export const encryptMetadataWithSharedKey = (plainText, sharedKey) => {
+    if (!plainText || !sharedKey) return null;
+    return encryptWithSharedKey(String(plainText), sharedKey);
+};
+
+/**
+ * Decrypt metadata with a specific shared key (for doctor operations)
+ */
+export const decryptMetadataWithSharedKey = (encryptedText, sharedKey) => {
+    if (!encryptedText || !sharedKey) return null;
+    return decryptWithSharedKey(encryptedText, sharedKey);
+};
+
+/**
+ * Get current encryption key (for operations that need it)
+ */
+export const getCurrentKey = () => {
+    return SECRET_KEY;
+};
+
 

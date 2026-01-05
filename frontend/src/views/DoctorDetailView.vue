@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
 import ConfirmModal from '../components/ConfirmModal.vue';
+import { decryptMetadata } from '../utils/crypto';
 
 const route = useRoute();
 const router = useRouter();
@@ -65,6 +66,40 @@ const cancelRevoke = () => {
 };
 
 const goBack = () => router.back();
+
+// Decrypt doctor name from encrypted fields
+const getDoctorName = (doc) => {
+    if (!doc) return { firstName: '', lastName: '' };
+    try {
+        if (doc.encrypted_first_name && doc.encrypted_last_name) {
+            const firstName = decryptMetadata(doc.encrypted_first_name);
+            const lastName = decryptMetadata(doc.encrypted_last_name);
+            if (firstName && lastName && firstName !== '[ENCRYPTED]' && lastName !== '[ENCRYPTED]') {
+                return { firstName, lastName };
+            }
+        }
+        // Fallback to username if encrypted fields don't work
+        return { firstName: '@' + doc.user.username, lastName: '' };
+    } catch (e) {
+        return { firstName: '@' + doc.user.username, lastName: '' };
+    }
+};
+
+// Decrypt doctor organisation
+const getDoctorOrganisation = (doc) => {
+    if (!doc) return '';
+    try {
+        if (doc.encrypted_organisation) {
+            const org = decryptMetadata(doc.encrypted_organisation);
+            if (org && org !== '[ENCRYPTED]') {
+                return org;
+            }
+        }
+        return doc.user.email || 'Medical Professional';
+    } catch (e) {
+        return doc.user.email || 'Medical Professional';
+    }
+};
 </script>
 
 <template>
@@ -84,13 +119,13 @@ const goBack = () => router.back();
                     <div class="w-24 h-24 rounded-full bg-white p-1 shadow-md inline-block">
                         <div
                             class="w-full h-full rounded-full bg-gradient-to-br from-purple-400 to-indigo-600 flex items-center justify-center text-3xl text-white font-bold">
-                            {{ doctor.user.last_name.charAt(0) }}
+                            {{ getDoctorName(doctor).lastName.charAt(0) }}
                         </div>
                     </div>
                 </div>
 
-                <h1 class="text-3xl font-bold text-gray-900">Dr. {{ doctor.user.first_name }} {{ doctor.user.last_name }}</h1>
-                <p class="text-blue-600 font-medium mb-4">{{ doctor.organisation }}</p>
+                <h1 class="text-3xl font-bold text-gray-900">Dr. {{ getDoctorName(doctor).firstName }} {{ getDoctorName(doctor).lastName }}</h1>
+                <p class="text-blue-600 font-medium mb-4">{{ getDoctorOrganisation(doctor) }}</p>
 
                 <div class="space-y-4 text-gray-600">
                     <div class="flex items-center">
@@ -99,7 +134,7 @@ const goBack = () => router.back();
                                 d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4">
                             </path>
                         </svg>
-                        {{ doctor.organisation }}
+                        {{ getDoctorOrganisation(doctor) }}
                     </div>
                     <div class="flex items-center">
                         <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -124,7 +159,7 @@ const goBack = () => router.back();
         <ConfirmModal
             :show="showConfirmModal"
             title="Revoke Doctor Access"
-            :message="doctor ? `Are you sure you want to revoke access for Dr. ${doctor.user.first_name} ${doctor.user.last_name}? They will no longer be able to view your medical records.` : ''"
+            :message="doctor ? `Are you sure you want to revoke access for Dr. ${getDoctorName(doctor).firstName} ${getDoctorName(doctor).lastName}? They will no longer be able to view your medical records.` : ''"
             confirmText="Revoke Access"
             cancelText="Cancel"
             :isDangerous="true"

@@ -528,14 +528,25 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         
+        # Debug: log what we received
+        print(f"[DEBUG] File upload - User: {user.username}, Type: {hasattr(user, 'patient_profile')}")
+        print(f"[DEBUG] Request data keys: {self.request.data.keys()}")
+        print(f"[DEBUG] Has encrypted_name: {'encrypted_name' in self.request.data}")
+        
         # If patient uploads for themselves
         if hasattr(user, 'patient_profile'):
             try:
+                print(f"[DEBUG] Encrypted metadata - encrypted_name present: {'encrypted_name' in self.request.data}")
+                
+                # Save with only the foreign keys - encrypted fields are already in serializer.validated_data
                 serializer.save(
                     patient=user.patient_profile,
                     uploaded_by=user
                 )
             except Exception as e:
+                print(f"[ERROR] Upload failed: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 raise drf_serializers.ValidationError(
                     f"Failed to save file: {str(e)}"
                 )
@@ -562,6 +573,11 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                 file_name = self.request.data.get('name', '')
                 file_description = self.request.data.get('description', '')
                 
+                # Get encrypted metadata
+                encrypted_file_name = self.request.data.get('encrypted_file_name')
+                encrypted_file_description = self.request.data.get('encrypted_file_description')
+                encrypted_file_date = self.request.data.get('encrypted_file_date')
+                
                 FileActionRequest.objects.create(
                     patient=patient,
                     doctor=user.doctor_profile,
@@ -569,6 +585,9 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                     file_data=file_obj,
                     file_name=file_name,
                     file_description=file_description,
+                    encrypted_file_name=encrypted_file_name,
+                    encrypted_file_description=encrypted_file_description,
+                    encrypted_file_date=encrypted_file_date,
                     status='pending'
                 )
                 
@@ -679,6 +698,14 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
             if 'description' in request.data:
                 medical_file.description = request.data['description']
             
+            # Update encrypted metadata
+            if 'encrypted_name' in request.data:
+                medical_file.encrypted_name = request.data['encrypted_name']
+            if 'encrypted_description' in request.data:
+                medical_file.encrypted_description = request.data['encrypted_description']
+            if 'encrypted_date' in request.data:
+                medical_file.encrypted_date = request.data['encrypted_date']
+            
             medical_file.save()
             serializer = MedicalFileSerializer(medical_file)
             return Response(serializer.data)
@@ -697,6 +724,11 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
             file_name = request.data.get('name', medical_file.name)
             file_description = request.data.get('description', medical_file.description)
             
+            # Get encrypted metadata
+            encrypted_file_name = request.data.get('encrypted_file_name')
+            encrypted_file_description = request.data.get('encrypted_file_description')
+            encrypted_file_date = request.data.get('encrypted_file_date')
+            
             FileActionRequest.objects.create(
                 patient=medical_file.patient,
                 doctor=user.doctor_profile,
@@ -705,6 +737,9 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                 file_data=file_obj,
                 file_name=file_name,
                 file_description=file_description,
+                encrypted_file_name=encrypted_file_name,
+                encrypted_file_description=encrypted_file_description,
+                encrypted_file_date=encrypted_file_date,
                 status='pending'
             )
             

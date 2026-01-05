@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import api from '../services/api';
 import StatusAlert from '../components/StatusAlert.vue';
 import { useNotifications } from '../composables/useNotifications';
+import { getCurrentKey } from '../utils/crypto';
 
 const { success: notifySuccess, error: notifyError } = useNotifications();
 const requests = ref([]);
@@ -40,7 +41,29 @@ const fetchRequests = async () => {
 
 const approveRequest = async (request) => {
     try {
+        // First approve the request
         await api.approveRequest(request.id);
+        
+        // Then automatically share the encryption key with the doctor
+        try {
+            const myEncryptionKey = getCurrentKey();
+            const doctorPublicKey = request.doctor.public_key;
+            
+            if (doctorPublicKey && myEncryptionKey) {
+                const encryptedKey = await encryptWithPublicKey(myEncryptionKey, doctorPublicKey);
+                
+                await api.post('/share-key/', {
+                    doctor_id: request.doctor.id,
+                    encrypted_key: encryptedKey
+                });
+                
+                console.log('Encryption key shared successfully with doctor');
+            }
+        } catch (keyError) {
+            console.warn('Failed to share encryption key:', keyError);
+            // Don't fail the whole approval if key sharing fails
+        }
+        
         const message = `Dr. ${request.doctor.user.last_name} has been added to your doctors list.`;
         success.value = message;
         notifySuccess(message);

@@ -1,6 +1,7 @@
 <script>
 import axios from 'axios'
 import { useReCaptcha } from 'vue-recaptcha-v3'
+import { encryptMetadata, deriveKeyFromUser } from '@/utils/crypto'
 
 export default {
   name: "RegisterPage",
@@ -43,19 +44,32 @@ export default {
         // Obtenir le token reCAPTCHA
         const recaptchaToken = await this.executeRecaptcha('register')
 
-        // Générer un mot de passe temporaire simple
+        // Génér un mot de passe temporaire simple
         const tempPassword = this.generateTempPassword()
+        
+        // Générer clé de chiffrement déterministe pour l'utilisateur
+        // Utilise SEULEMENT username (keycloak_id n'existe pas encore)
+        deriveKeyFromUser(this.username)
+        
+        // Chiffrer les données sensibles côté client AVANT envoi
+        const encryptedDateOfBirth = encryptMetadata(this.dateOfBirth)
+        const encryptedFirstName = encryptMetadata(this.firstName)
+        const encryptedLastName = encryptMetadata(this.lastName)
 
         const response = await axios.post('http://localhost:8000/api/auth/register/', {
           username: this.username,
           email: this.email,
           password: tempPassword,
-          first_name: this.firstName,
-          last_name: this.lastName,
+          first_name: this.firstName,  // Keep plaintext for Keycloak
+          last_name: this.lastName,    // Keep plaintext for Keycloak
           user_type: 'patient',  // Always patient
-          date_of_birth: this.dateOfBirth,
+          date_of_birth: this.dateOfBirth,  // Keep plaintext for validation
           organisation: null,
-          recaptcha_token: recaptchaToken
+          recaptcha_token: recaptchaToken,
+          // Encrypted versions stored in Django DB
+          encrypted_date_of_birth: encryptedDateOfBirth,
+          encrypted_first_name: encryptedFirstName,
+          encrypted_last_name: encryptedLastName
         })
 
         if (response.data) {

@@ -14,6 +14,23 @@ class Doctor(models.Model):
         help_text="Keycloak user ID (sub claim)"
     )
     organisation = models.CharField(max_length=100)
+    
+    # Encrypted sensitive data (client-side encrypted with doctor's key)
+    encrypted_organisation = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted organisation (AES-256)"
+    )
+    encrypted_first_name = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted first name (AES-256)"
+    )
+    encrypted_last_name = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted last name (AES-256)"
+    )
 
     def __str__(self):
         return f"Dr. {self.user.last_name} ({self.organisation})"
@@ -35,6 +52,23 @@ class Patient(models.Model):
         help_text="Keycloak user ID (sub claim)"
     )
     date_of_birth = models.DateField(null=True, blank=True)
+    
+    # Encrypted sensitive data (client-side encrypted with patient's key)
+    encrypted_date_of_birth = models.TextField(
+        blank=True, 
+        null=True,
+        help_text="Client-side encrypted date of birth (AES-256)"
+    )
+    encrypted_first_name = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted first name (AES-256)"
+    )
+    encrypted_last_name = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted last name (AES-256)"
+    )
 
     appointed_doctors = models.ManyToManyField(
         Doctor, related_name="patients", blank=True
@@ -97,6 +131,23 @@ class DoctorPatientRequest(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    # Encrypted sensitive metadata (client-side encrypted with patient's key)
+    encrypted_name = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted file name (AES-256)"
+    )
+    encrypted_description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted description (AES-256)"
+    )
+    encrypted_date = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted examination date (AES-256)"
+    )
 
     class Meta:
         ordering = ['-created_at']
@@ -112,8 +163,10 @@ class MedicalFile(models.Model):
         Patient, on_delete=models.CASCADE, related_name="medical_files"
     )
     file = models.FileField(upload_to="medical_records/")
-    name = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
+    # Legacy fields - keep for compatibility but store anonymized placeholders
+    # Real data is ONLY in encrypted_* fields
+    name = models.CharField(max_length=255, default='[ENCRYPTED]', help_text="Anonymized placeholder - real data in encrypted_name")
+    description = models.TextField(blank=True, default='', help_text="Anonymized placeholder - real data in encrypted_description")
 
     uploaded_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True
@@ -121,6 +174,23 @@ class MedicalFile(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Encrypted sensitive metadata (client-side encrypted with patient's key)
+    encrypted_name = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted file name (AES-256)"
+    )
+    encrypted_description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted description (AES-256)"
+    )
+    encrypted_date = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted examination date (AES-256)"
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -141,6 +211,23 @@ class FileActionRequest(models.Model):
         ('edit', 'Edit'),
         ('delete', 'Delete'),
     ]
+    
+    # Encrypted sensitive metadata (client-side encrypted with patient's key)
+    encrypted_file_name = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted file name (AES-256)"
+    )
+    encrypted_file_description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted description (AES-256)"
+    )
+    encrypted_file_date = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Client-side encrypted examination date (AES-256)"
+    )
     
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -179,21 +266,29 @@ class FileActionRequest(models.Model):
             raise ValueError("Can only execute approved actions")
         
         if self.action_type == 'upload':
-            # Create new medical file
+            # Create new medical file with encrypted metadata
             MedicalFile.objects.create(
                 patient=self.patient,
                 file=self.file_data,
                 name=self.file_name,
                 description=self.file_description,
-                uploaded_by=self.doctor.user
+                uploaded_by=self.doctor.user,
+                encrypted_name=self.encrypted_file_name,
+                encrypted_description=self.encrypted_file_description,
+                encrypted_date=self.encrypted_file_date
             )
         
         elif self.action_type == 'edit':
-            # Update existing file
+            # Update existing file with encrypted metadata
             if self.target_file:
-                self.target_file.file = self.file_data
+                # Only update file if new file was uploaded
+                if self.file_data:
+                    self.target_file.file = self.file_data
                 self.target_file.name = self.file_name
                 self.target_file.description = self.file_description
+                self.target_file.encrypted_name = self.encrypted_file_name
+                self.target_file.encrypted_description = self.encrypted_file_description
+                self.target_file.encrypted_date = self.encrypted_file_date
                 self.target_file.save()
         
         elif self.action_type == 'delete':

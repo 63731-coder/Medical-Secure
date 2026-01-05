@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import api from '../services/api';
 import { useRouter } from 'vue-router';
-import { encryptData, encryptKeyForDoctor, decryptSharedKey, encryptWithSharedKey } from '../utils/crypto';
+import { encryptData, encryptKeyForDoctor, decryptSharedKey, encryptWithSharedKey, encryptMetadata, getCurrentKey, decryptWithSharedKey } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import { useNotifications } from '../composables/useNotifications';
 
@@ -19,6 +19,7 @@ const patients = ref([]);
 const selectedPatient = ref(null);
 const appointedDoctors = ref([]);
 const currentDoctorId = ref(null);
+const decryptedPatients = ref({}); // Store decrypted patient names
 
 onMounted(async () => {
     try {
@@ -30,6 +31,9 @@ onMounted(async () => {
             currentDoctorId.value = profileRes.data.profile.id;
             const patientsRes = await api.getPatients();
             patients.value = patientsRes.data;
+            
+            // Decrypt patient names
+            await decryptPatientsData();
         }
         
         // If patient, get appointed doctors list for key sharing
@@ -40,6 +44,38 @@ onMounted(async () => {
         console.error('Failed to fetch profile:', e);
     }
 });
+
+// Decrypt patient names for dropdown
+const decryptPatientsData = async () => {
+    for (const patient of patients.value) {
+        try {
+            const keyResponse = await api.get(`/get-shared-key/?patient_id=${patient.id}`);
+            const encryptedPatientKey = keyResponse.data.encrypted_key;
+            const patientKey = decryptSharedKey(encryptedPatientKey, currentDoctorId.value);
+            
+            if (patientKey) {
+                const firstName = patient.encrypted_first_name ? decryptWithSharedKey(patient.encrypted_first_name, patientKey) : patient.user.first_name;
+                const lastName = patient.encrypted_last_name ? decryptWithSharedKey(patient.encrypted_last_name, patientKey) : patient.user.last_name;
+                decryptedPatients.value[patient.id] = { firstName, lastName };
+            }
+        } catch (e) {
+            console.warn(`Failed to decrypt patient ${patient.id}:`, e);
+            decryptedPatients.value[patient.id] = {
+                firstName: patient.user.first_name,
+                lastName: patient.user.last_name
+            };
+        }
+    }
+};
+
+// Get decrypted patient name
+const getPatientName = (patient) => {
+    const data = decryptedPatients.value[patient.id];
+    if (data) {
+        return `${data.firstName} ${data.lastName}`;
+    }
+    return `${patient.user.first_name} ${patient.user.last_name}`;
+};
 
 const handleFileChange = (event) => {
     file.value = event.target.files[0];
@@ -143,10 +179,37 @@ const handleUpload = async () => {
             formData.append('description', ''); // Add empty description field
             formData.append('file', encryptedBlob, file.value.name + ".enc"); // Add .enc extension
             
-            // If doctor, add patient_id
+            // Encrypt sensitive metadata (file name and date) BEFORE sending to server
+            const currentDate = new Date().toISOString();
+            let encryptedName, encryptedDate;
+            
             if (userType.value === 'doctor') {
+                // Doctor: use patient's shared key
+                try {
+                    const keyResponse = await api.get('/get-shared-key/', {
+                        params: { patient_id: selectedPatient.value }
+                    });
+                    const patientKey = decryptSharedKey(keyResponse.data.encrypted_key, currentDoctorId.value);
+                    encryptedName = encryptWithSharedKey(fullTitle, patientKey);
+                    encryptedDate = encryptWithSharedKey(currentDate, patientKey);
+                } catch (keyError) {
+                    console.error("Failed to encrypt metadata with patient key:", keyError);
+                    throw new Error("Cannot encrypt file metadata for patient");
+                }
+                
                 formData.append('patient_id', selectedPatient.value);
+                formData.append('encrypted_file_name', encryptedName);
+                formData.append('encrypted_file_description', '');
+                formData.append('encrypted_file_date', encryptedDate);
+            } else {
+                // Patient: use their own key (simpler)
+                encryptedName = encryptMetadata(fullTitle);
+                encryptedDate = encryptMetadata(currentDate);
             }
+            
+            formData.append('encrypted_name', encryptedName);
+            formData.append('encrypted_description', ''); // Empty encrypted description
+            formData.append('encrypted_date', encryptedDate);
 
             // 4. Send to Server
             status.value = { type: 'info', message: "Uploading encrypted data..." };
@@ -198,7 +261,7 @@ const handleUpload = async () => {
                 status.value = { type: 'error', message: "Upload failed: " + errorMsg };
                 notifyError('Upload failed: ' + errorMsg);
             }
-        } finally {
+        } finally {getPatientName(patient)
             loading.value = false;
         }
     };
@@ -233,7 +296,7 @@ const handleUpload = async () => {
                     class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                     <option :value="null" disabled>Choose a patient...</option>
                     <option v-for="patient in patients" :key="patient.id" :value="patient.id">
-                        {{ patient.user.first_name }} {{ patient.user.last_name }} (@{{ patient.user.username }})
+                        {{ getPatientName(patient) }} (@{{ patient.user.username }})
                     </option>
                 </select>
                 <p class="text-xs text-blue-600 mt-2">⚠️ Patient approval required for upload</p>

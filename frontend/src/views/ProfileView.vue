@@ -1,7 +1,7 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { clearEncryptionKey } from '../utils/crypto';
+import { clearEncryptionKey, decryptMetadata } from '../utils/crypto';
 import api from '../services/api';
 
 const router = useRouter();
@@ -9,6 +9,50 @@ const user = ref(null);
 const profile = ref(null);
 const userType = ref(null);
 const loading = ref(true);
+
+// Computed properties for decrypted data
+const decryptedFirstName = computed(() => {
+    if (!profile.value?.encrypted_first_name) return user.value?.first_name || 'N/A';
+    try {
+        return decryptMetadata(profile.value.encrypted_first_name) || user.value?.first_name || 'N/A';
+    } catch (e) {
+        console.error('Failed to decrypt first name:', e);
+        return user.value?.first_name || 'Encrypted';
+    }
+});
+
+const decryptedLastName = computed(() => {
+    if (!profile.value?.encrypted_last_name) return user.value?.last_name || 'N/A';
+    try {
+        return decryptMetadata(profile.value.encrypted_last_name) || user.value?.last_name || 'N/A';
+    } catch (e) {
+        console.error('Failed to decrypt last name:', e);
+        return user.value?.last_name || 'Encrypted';
+    }
+});
+
+const decryptedDateOfBirth = computed(() => {
+    if (userType.value !== 'patient' || !profile.value) return null;
+    if (!profile.value.encrypted_date_of_birth) return profile.value.date_of_birth;
+    try {
+        const decrypted = decryptMetadata(profile.value.encrypted_date_of_birth);
+        return decrypted || profile.value.date_of_birth;
+    } catch (e) {
+        console.error('Failed to decrypt date of birth:', e);
+        return profile.value.date_of_birth || 'Encrypted';
+    }
+});
+
+const decryptedOrganisation = computed(() => {
+    if (userType.value !== 'doctor' || !profile.value) return null;
+    if (!profile.value.encrypted_organisation) return profile.value.organisation;
+    try {
+        return decryptMetadata(profile.value.encrypted_organisation) || profile.value.organisation || 'N/A';
+    } catch (e) {
+        console.error('Failed to decrypt organisation:', e);
+        return profile.value.organisation || 'Encrypted';
+    }
+});
 
 onMounted(async () => {
     try {
@@ -70,12 +114,12 @@ function logout() {
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="bg-gray-50 rounded-lg p-4">
                         <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">First Name</label>
-                        <p class="text-gray-900 font-medium mt-1">{{ user.first_name || 'N/A' }}</p>
+                        <p class="text-gray-900 font-medium mt-1">{{ decryptedFirstName }}</p>
                     </div>
                     
                     <div class="bg-gray-50 rounded-lg p-4">
                         <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Last Name</label>
-                        <p class="text-gray-900 font-medium mt-1">{{ user.last_name || 'N/A' }}</p>
+                        <p class="text-gray-900 font-medium mt-1">{{ decryptedLastName }}</p>
                     </div>
                     
                     <div class="bg-gray-50 rounded-lg p-4">
@@ -91,13 +135,13 @@ function logout() {
                     <div v-if="userType === 'patient' && profile" class="bg-gray-50 rounded-lg p-4">
                         <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Date of Birth</label>
                         <p class="text-gray-900 font-medium mt-1">
-                            {{ profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString() : 'N/A' }}
+                            {{ decryptedDateOfBirth ? new Date(decryptedDateOfBirth).toLocaleDateString() : 'N/A' }}
                         </p>
                     </div>
                     
                     <div v-if="userType === 'doctor' && profile" class="bg-gray-50 rounded-lg p-4">
                         <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Organisation</label>
-                        <p class="text-gray-900 font-medium mt-1">{{ profile.organisation || 'N/A' }}</p>
+                        <p class="text-gray-900 font-medium mt-1">{{ decryptedOrganisation }}</p>
                     </div>
                     
                     <div class="bg-gray-50 rounded-lg p-4">

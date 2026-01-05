@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';
 import StatusAlert from '../components/StatusAlert.vue';
-import { encryptKeyForDoctor } from '../utils/crypto';
+import { encryptKeyForDoctor, decryptMetadata } from '../utils/crypto';
 
 const query = ref('');
 const allDoctors = ref([]);
@@ -93,12 +93,45 @@ const isAppointed = (doctorId) => {
     return appointedDoctorIds.value.includes(doctorId);
 };
 
+// Decrypt doctor name from encrypted fields
+const getDoctorName = (doctor) => {
+    try {
+        if (doctor.encrypted_first_name && doctor.encrypted_last_name) {
+            const firstName = decryptMetadata(doctor.encrypted_first_name);
+            const lastName = decryptMetadata(doctor.encrypted_last_name);
+            if (firstName && lastName && firstName !== '[ENCRYPTED]' && lastName !== '[ENCRYPTED]') {
+                return { firstName, lastName };
+            }
+        }
+        // Fallback to username if encrypted fields don't work
+        return { firstName: '@' + doctor.user.username, lastName: '' };
+    } catch (e) {
+        return { firstName: '@' + doctor.user.username, lastName: '' };
+    }
+};
+
+// Decrypt doctor organisation
+const getDoctorOrganisation = (doctor) => {
+    try {
+        if (doctor.encrypted_organisation) {
+            const org = decryptMetadata(doctor.encrypted_organisation);
+            if (org && org !== '[ENCRYPTED]') {
+                return org;
+            }
+        }
+        return doctor.user.email || 'Medical Professional';
+    } catch (e) {
+        return doctor.user.email || 'Medical Professional';
+    }
+};
+
 const filtered = computed(() => {
     const q = query.value.trim().toLowerCase();
     if (!q) return allDoctors.value;
     return allDoctors.value.filter(d => {
-        const name = `${d.user.first_name} ${d.user.last_name}`.toLowerCase();
-        const org = d.organisation.toLowerCase();
+        const { firstName, lastName } = getDoctorName(d);
+        const name = `${firstName} ${lastName}`.toLowerCase();
+        const org = getDoctorOrganisation(d).toLowerCase();
         return name.includes(q) || org.includes(q);
     });
 });
@@ -132,11 +165,11 @@ const filtered = computed(() => {
                 <div class="flex items-center gap-4">
                     <div
                         class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-indigo-600 flex items-center justify-center text-white text-lg font-semibold">
-                        {{ doctor.user.last_name.charAt(0) }}
+                        {{ getDoctorName(doctor).lastName.charAt(0) }}
                     </div>
                     <div>
-                        <div class="font-semibold text-gray-900">Dr. {{ doctor.user.first_name }} {{ doctor.user.last_name }}</div>
-                        <div class="text-sm text-gray-500">{{ doctor.organisation }}</div>
+                        <div class="font-semibold text-gray-900">Dr. {{ getDoctorName(doctor).firstName }} {{ getDoctorName(doctor).lastName }}</div>
+                        <div class="text-sm text-gray-500">{{ getDoctorOrganisation(doctor) }}</div>
                     </div>
                 </div>
 
