@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '../services/api';
@@ -44,62 +44,51 @@ const fetchData = async () => {
 
 // Decrypt patient personal information using shared keys
 const decryptPatientsData = async () => {
-    console.log('[DEBUG] Starting to decrypt patients data...');
-    console.log('[DEBUG] Current doctor ID:', currentDoctorId.value);
-    console.log('[DEBUG] Number of patients:', patients.value.length);
-    
     for (const patient of patients.value) {
         try {
-            console.log(`[DEBUG] Processing patient: ${patient.user.username} (ID: ${patient.id})`);
-            
             // Get shared key for this patient (encrypted with doctor's derived key)
             const keyResponse = await api.get(`/get-shared-key/?patient_id=${patient.id}`);
-            const encryptedPatientKey = keyResponse.data.encrypted_key;
-            console.log(`[DEBUG] Got encrypted key (first 50 chars): ${encryptedPatientKey.substring(0, 50)}`);
+            const encryptedPatientKey = keyResponse.data.key;
             
             // Step 1: Decrypt the patient's key using doctor's ID
             const patientKey = decryptSharedKey(encryptedPatientKey, currentDoctorId.value);
-            console.log(`[DEBUG] Decrypted patient key:`, patientKey ? 'SUCCESS' : 'FAILED');
             
             if (!patientKey) {
                 throw new Error('Failed to decrypt patient key');
             }
             
             // Step 2: Decrypt patient data with patient's key
-            console.log(`[DEBUG] encrypted_first_name exists: ${!!patient.encrypted_first_name}`);
-            console.log(`[DEBUG] encrypted_last_name exists: ${!!patient.encrypted_last_name}`);
+            // First try User model fields (new location), then Patient model fields (legacy)
+            const firstName = patient.user.first_name ? 
+                decryptWithSharedKey(patient.user.first_name, patientKey) : 
+                (patient.first_name ? decryptWithSharedKey(patient.first_name, patientKey) : 'Unknown');
             
-            const firstName = patient.encrypted_first_name ? decryptWithSharedKey(patient.encrypted_first_name, patientKey) : patient.user.first_name;
-            const lastName = patient.encrypted_last_name ? decryptWithSharedKey(patient.encrypted_last_name, patientKey) : patient.user.last_name;
-            const dateOfBirth = patient.encrypted_date_of_birth ? decryptWithSharedKey(patient.encrypted_date_of_birth, patientKey) : patient.date_of_birth;
+            const lastName = patient.user.last_name ? 
+                decryptWithSharedKey(patient.user.last_name, patientKey) : 
+                (patient.last_name ? decryptWithSharedKey(patient.last_name, patientKey) : '');
             
-            console.log(`[DEBUG] Decrypted firstName: ${firstName}`);
-            console.log(`[DEBUG] Decrypted lastName: ${lastName}`);
-            console.log(`[DEBUG] Decrypted dateOfBirth: ${dateOfBirth}`);
-            console.log(`[DEBUG] Original date_of_birth: ${patient.date_of_birth}`);
+            const dateOfBirth = patient.date_of_birth ? 
+                decryptWithSharedKey(patient.date_of_birth, patientKey) : null;
             
             const decryptedData = { firstName, lastName, dateOfBirth };
             
             // Use object assignment for Vue reactivity
             decryptedPatients.value[patient.id] = decryptedData;
         } catch (e) {
-            console.error(`[ERROR] Failed to decrypt patient ${patient.id} data:`, e);
-            // Fallback to encrypted placeholders
+            console.error(`Failed to decrypt patient data`);
+            // Fallback to username
             decryptedPatients.value[patient.id] = {
-                firstName: patient.user.first_name,
-                lastName: patient.user.last_name,
-                dateOfBirth: patient.date_of_birth
+                firstName: patient.user.username,
+                lastName: '',
+                dateOfBirth: null
             };
         }
     }
-    console.log('[DEBUG] Finished decrypting patients data');
-    console.log('[DEBUG] Decrypted patients object:', decryptedPatients.value);
 };
 
 // Get decrypted patient name
 const getPatientName = (patient) => {
     const data = decryptedPatients.value[patient.id];
-    console.log(`[DEBUG] getPatientName for ${patient.id}:`, data);
     if (data) {
         return `${data.firstName} ${data.lastName}`;
     }

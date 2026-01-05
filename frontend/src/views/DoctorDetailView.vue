@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';
@@ -66,21 +66,23 @@ const cancelRevoke = () => {
 
 const goBack = () => router.back();
 
-// Get doctor name from user fields (already in plaintext from backend)
+// Get decrypted doctor name
 const getDoctorName = (doc) => {
     if (!doc) return { firstName: '', lastName: '' };
-    // Use Django User model fields (backend sends plaintext)
-    if (doc.user.first_name && doc.user.last_name) {
-        return { firstName: doc.user.first_name, lastName: doc.user.last_name };
+    try {
+        const firstName = doc.user.first_name ? decryptMetadata(doc.user.first_name) : '';
+        const lastName = doc.user.last_name ? decryptMetadata(doc.user.last_name) : '';
+        if (firstName || lastName) {
+            return { firstName, lastName };
+        }
+    } catch (e) {
+        // Fallback to username if decryption fails
     }
-    // Fallback to username if names are not set
     return { firstName: doc.user.username, lastName: '' };
 };
 
-// Get doctor organisation (already in plaintext from backend)
 const getDoctorOrganisation = (doc) => {
     if (!doc) return '';
-    // Use organisation field (backend sends plaintext)
     return doc.organisation || 'Medical Professional';
 };
 </script>

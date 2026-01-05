@@ -1,10 +1,8 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted, computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { clearEncryptionKey, decryptMetadata } from '../utils/crypto';
+import { decryptMetadata } from '../utils/crypto';
 import api from '../services/api';
 
-const router = useRouter();
 const user = ref(null);
 const profile = ref(null);
 const userType = ref(null);
@@ -12,53 +10,44 @@ const loading = ref(true);
 
 // Computed properties for decrypted data
 const decryptedFirstName = computed(() => {
-    // For patients, use encrypted_data from response
-    if (userType.value === 'patient' && user.value?.encrypted_data?.encrypted_first_name) {
+    // Both patients and doctors: decrypt user.first_name (Django User model)
+    if (user.value?.first_name) {
         try {
-            return decryptMetadata(user.value.encrypted_data.encrypted_first_name) || 'N/A';
+            return decryptMetadata(user.value.first_name) || 'N/A';
         } catch (e) {
-            console.error('Failed to decrypt first name:', e);
             return 'N/A';
         }
     }
-    // For doctors, use plaintext
-    return user.value?.first_name || 'N/A';
+    return 'N/A';
 });
 
 const decryptedLastName = computed(() => {
-    // For patients, use encrypted_data from response
-    if (userType.value === 'patient' && user.value?.encrypted_data?.encrypted_last_name) {
+    // Both patients and doctors: decrypt user.last_name (Django User model)
+    if (user.value?.last_name) {
         try {
-            return decryptMetadata(user.value.encrypted_data.encrypted_last_name) || 'N/A';
+            return decryptMetadata(user.value.last_name) || 'N/A';
         } catch (e) {
-            console.error('Failed to decrypt last name:', e);
             return 'N/A';
         }
     }
-    // For doctors, use plaintext
-    return user.value?.last_name || 'N/A';
+    return 'N/A';
 });
 
 const decryptedDateOfBirth = computed(() => {
-    if (userType.value !== 'patient') return null;
+    if (userType.value !== 'patient' || !profile.value?.date_of_birth) return null;
     
-    // Try encrypted data first
-    if (user.value?.encrypted_data?.encrypted_date_of_birth) {
-        try {
-            return decryptMetadata(user.value.encrypted_data.encrypted_date_of_birth);
-        } catch (e) {
-            console.error('Failed to decrypt date of birth:', e);
-        }
+    try {
+        return decryptMetadata(profile.value.date_of_birth);
+    } catch (e) {
+        return null;
     }
-    
-    return profile.value?.date_of_birth || null;
 });
 
 const decryptedOrganisation = computed(() => {
     if (userType.value !== 'doctor' || !profile.value) return null;
-    if (!profile.value.encrypted_organisation) return profile.value.organisation;
+    if (!profile.value.organisation) return profile.value.organisation;
     try {
-        return decryptMetadata(profile.value.encrypted_organisation) || profile.value.organisation || 'N/A';
+        return decryptMetadata(profile.value.organisation) || profile.value.organisation || 'N/A';
     } catch (e) {
         console.error('Failed to decrypt organisation:', e);
         return profile.value.organisation || 'Encrypted';
@@ -77,14 +66,6 @@ onMounted(async () => {
         loading.value = false;
     }
 });
-
-function logout() {
-    clearEncryptionKey();
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    sessionStorage.clear();
-    router.push('/login');
-}
 </script>
 
 <template>
@@ -99,11 +80,11 @@ function logout() {
                 <div class="flex items-center space-x-6">
                     <div
                         class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold">
-                        {{ user.first_name ? user.first_name.charAt(0).toUpperCase() : 'U' }}
+                        {{ decryptedFirstName ? decryptedFirstName.charAt(0).toUpperCase() : 'U' }}
                     </div>
                     <div>
                         <h2 class="text-2xl font-extrabold text-gray-900">
-                            {{ user.first_name }} {{ user.last_name }}
+                            {{ decryptedFirstName }} {{ decryptedLastName }}
                         </h2>
                         <p class="text-sm text-gray-500 mt-1">@{{ user.username }}</p>
                         <p class="text-xs text-gray-400 mt-1 capitalize">
@@ -113,10 +94,6 @@ function logout() {
                         </p>
                     </div>
                 </div>
-                <button @click="logout"
-                    class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 font-medium px-4 py-2 rounded-lg transition">
-                    Log out
-                </button>
             </div>
 
             <!-- Profile Information -->

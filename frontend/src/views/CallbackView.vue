@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="oauth-callback">
     <div v-if="loading" class="loading">
       <div class="spinner"></div>
@@ -42,12 +42,13 @@ export default {
         // Exchange code for tokens
         await keycloakAuth.handleCallback(code, state)
         
-        // Fetch user profile to get username and keycloak_id
+        // Fetch user profile to get username
         const response = await api.get('/auth/me/')
         const userData = response.data
         
-        // Generate deterministic encryption key based on user identity
-        deriveKeyFromUser(userData.username, userData.keycloak_id)
+        // Generate deterministic encryption key based on username
+        // Use username (not keycloak_id) to match the key used during registration
+        deriveKeyFromUser(userData.username)
         
         // Redirect to home page
         router.push('/')

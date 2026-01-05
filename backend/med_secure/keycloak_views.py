@@ -27,14 +27,17 @@ class KeycloakRegisterView(APIView):
         recaptcha_token = request.data.get('recaptcha_token')  # reCAPTCHA v3 token
         
         # Additional fields
-        date_of_birth = request.data.get('date_of_birth')  # for patient
-        organisation = request.data.get('organisation')  # for doctor
+        date_of_birth = request.data.get('date_of_birth')  # for patient (encrypted)
+        organisation = request.data.get('organisation')  # for doctor (plaintext)
         
-        # Encrypted sensitive data (client-side encrypted)
-        encrypted_date_of_birth = request.data.get('encrypted_date_of_birth')
-        encrypted_first_name = request.data.get('encrypted_first_name')
-        encrypted_last_name = request.data.get('encrypted_last_name')
-        encrypted_organisation = request.data.get('encrypted_organisation')
+        # Encrypted sensitive data (client-side encrypted) - for Django DB
+        encrypted_first_name = request.data.get('first_name')  # Encrypted
+        encrypted_last_name = request.data.get('last_name')  # Encrypted
+        encrypted_date_of_birth = request.data.get('date_of_birth')  # Encrypted
+        
+        # Plaintext versions for Keycloak only
+        plaintext_first_name = request.data.get('plaintext_first_name', '')
+        plaintext_last_name = request.data.get('plaintext_last_name', '')
 
         # Validation
         if not all([username, email, password, user_type]):
@@ -98,11 +101,12 @@ class KeycloakRegisterView(APIView):
             )
 
         # Create user in Keycloak
+        # Create user payload for Keycloak - use PLAINTEXT
         user_data = {
-            'username': username,
-            'email': email,
-            'firstName': first_name,
-            'lastName': last_name,
+            'username': username,               # Plaintext for Keycloak auth
+            'email': email,                     # Plaintext for Keycloak auth  
+            'firstName': plaintext_first_name,  # Plaintext for Keycloak UI
+            'lastName': plaintext_last_name,    # Plaintext for Keycloak UI
             'enabled': True,
             'emailVerified': True,
             'credentials': [{
@@ -115,9 +119,10 @@ class KeycloakRegisterView(APIView):
             'attributes': {}
         }
 
-        # Add type-specific attributes
-        if user_type == 'patient' and date_of_birth:
-            user_data['attributes']['date_of_birth'] = [date_of_birth]
+        # Add type-specific attributes (NOT encrypted in Keycloak)
+        if user_type == 'patient' and encrypted_date_of_birth:
+            # Don't store encrypted data in Keycloak - Keycloak is for authentication only
+            pass
         elif user_type == 'doctor' and organisation:
             user_data['attributes']['organisation'] = [organisation]
 
@@ -157,23 +162,17 @@ class KeycloakRegisterView(APIView):
 
         # Create user in local database
         try:
-            # Store data differently based on user type
-            if user_type == 'patient':
-                # PATIENTS: No plaintext data in DB
-                django_user = User.objects.create_user(
-                    username=username,
-                    email=email,
-                    first_name='',
-                    last_name=''
-                )
-            else:
-                # DOCTORS: Store plaintext in DB (trusted users)
-                django_user = User.objects.create_user(
-                    username=username,
-                    email=email,
-                    first_name=first_name,
-                    last_name=last_name
-                )
+            # Ensure encrypted names are not empty/None
+            safe_first_name = encrypted_first_name if encrypted_first_name else ''
+            safe_last_name = encrypted_last_name if encrypted_last_name else ''
+            
+            # Store encrypted data for BOTH patients and doctors in User model
+            django_user = User.objects.create_user(
+                username=username,         # Plaintext (for auth)
+                email=email,               # Plaintext (for auth)
+                first_name=safe_first_name,  # Encrypted (same for patients and doctors)
+                last_name=safe_last_name     # Encrypted (same for patients and doctors)
+            )
             
             django_user.set_unusable_password()  # Password managed by Keycloak
             django_user.save()
@@ -183,19 +182,15 @@ class KeycloakRegisterView(APIView):
                 Patient.objects.create(
                     user=django_user,
                     keycloak_id=keycloak_id,
-                    date_of_birth=None,
-                    encrypted_date_of_birth=encrypted_date_of_birth,
-                    encrypted_first_name=encrypted_first_name,
-                    encrypted_last_name=encrypted_last_name
+                    date_of_birth=encrypted_date_of_birth or '',  # Encrypted (or empty)
+                    first_name=safe_first_name,                   # Encrypted (or empty)
+                    last_name=safe_last_name                      # Encrypted (or empty)
                 )
             else:  # doctor
                 Doctor.objects.create(
                     user=django_user,
                     keycloak_id=keycloak_id,
-                    organisation=organisation,
-                    encrypted_organisation=encrypted_organisation,
-                    encrypted_first_name=encrypted_first_name,
-                    encrypted_last_name=encrypted_last_name
+                    organisation=organisation or ''  # Plaintext (or empty)
                 )
 
             return Response({
@@ -480,9 +475,9 @@ class CurrentUserView(APIView):
             }
             # Add encrypted data for client-side decryption
             encrypted_data = {
-                'encrypted_first_name': patient.encrypted_first_name,
-                'encrypted_last_name': patient.encrypted_last_name,
-                'encrypted_date_of_birth': patient.encrypted_date_of_birth
+                'first_name': patient.first_name,
+                'last_name': patient.last_name,
+                'date_of_birth': patient.date_of_birth
             }
         elif hasattr(user, 'doctor_profile'):
             user_type = 'doctor'

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted, computed } from 'vue';
 import api from '../services/api';
 import StatusAlert from '../components/StatusAlert.vue';
@@ -85,14 +85,18 @@ const getActionColor = (actionType) => {
     return colors[actionType] || 'gray';
 };
 
-// Get doctor name from user fields (already in plaintext from backend)
+// Get decrypted doctor name
 const getDoctorName = (doctor) => {
     if (!doctor) return '@unknown';
-    // Use Django User model fields (backend sends plaintext)
-    if (doctor.user.first_name && doctor.user.last_name) {
-        return `${doctor.user.first_name} ${doctor.user.last_name}`;
+    try {
+        const firstName = doctor.user.first_name ? decryptMetadata(doctor.user.first_name) : '';
+        const lastName = doctor.user.last_name ? decryptMetadata(doctor.user.last_name) : '';
+        if (firstName || lastName) {
+            return `${firstName} ${lastName}`.trim();
+        }
+    } catch (e) {
+        // Fallback to username if decryption fails
     }
-    // Fallback to username if names are not set
     return doctor.user.username;
 };
 
@@ -110,6 +114,59 @@ const getActionIcon = (actionType) => {
         'delete': 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
     }[actionType] || 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z';
 };
+
+// Decrypt request fields
+const getDecryptedFileName = (request) => {
+    if (!request.file_name) return 'Untitled';
+    try {
+        return decryptMetadata(request.file_name) || 'Untitled';
+    } catch (e) {
+        console.error('Failed to decrypt file name:', e);
+        return 'Encrypted';
+    }
+};
+
+const getDecryptedFileDescription = (request) => {
+    if (!request.file_description) return '';
+    try {
+        return decryptMetadata(request.file_description) || '';
+    } catch (e) {
+        console.error('Failed to decrypt file description:', e);
+        return '';
+    }
+};
+
+const getDecryptedTargetName = (request) => {
+    if (!request.target_file_info?.name) return 'Unknown';
+    try {
+        return decryptMetadata(request.target_file_info.name) || 'Unknown';
+    } catch (e) {
+        console.error('Failed to decrypt target file name:', e);
+        return 'Encrypted';
+    }
+};
+
+const getDecryptedTargetDescription = (request) => {
+    if (!request.target_file_info?.description) return '';
+    try {
+        return decryptMetadata(request.target_file_info.description) || '';
+    } catch (e) {
+        console.error('Failed to decrypt target file description:', e);
+        return '';
+    }
+};
+
+const getDecryptedActionType = (request) => {
+    // action_type is NOT encrypted on backend - it's stored as plain 'upload', 'edit', 'delete'
+    // This is not sensitive data, just an action type
+    if (!request.action_type) {
+        console.log('[FileActionRequest] No action_type field');
+        return 'upload'; // Default to upload if missing
+    }
+    // Return directly without decryption
+    return request.action_type;
+};
+
 </script>
 
 <template>
@@ -141,18 +198,18 @@ const getActionIcon = (actionType) => {
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex items-start gap-4 flex-1">
                         <!-- Action Icon -->
-                        <div :class="`w-12 h-12 rounded-full flex items-center justify-center bg-${getActionColor(request.action_type)}-100`">
+                        <div :class="`w-12 h-12 rounded-full flex items-center justify-center bg-${getActionColor(getDecryptedActionType(request))}-100`">
                             <svg xmlns="http://www.w3.org/2000/svg" 
-                                :class="`h-6 w-6 text-${getActionColor(request.action_type)}-600`"
+                                :class="`h-6 w-6 text-${getActionColor(getDecryptedActionType(request))}-600`"
                                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                    :d="getActionIcon(request.action_type)" />
+                                    :d="getActionIcon(getDecryptedActionType(request))" />
                             </svg>
                         </div>
                         
                         <div class="flex-1">
                             <h3 class="font-bold text-lg text-gray-900">
-                                {{ getActionText(request.action_type) }} File
+                                {{ getActionText(getDecryptedActionType(request)) }} File
                             </h3>
                             <p class="text-sm text-gray-600">
                                 Requested by <strong>Dr. {{ getDoctorName(request.doctor) }}</strong>
@@ -170,40 +227,40 @@ const getActionIcon = (actionType) => {
 
                 <!-- File Details -->
                 <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                    <div v-if="request.action_type === 'upload'" class="space-y-2">
+                    <div v-if="getDecryptedActionType(request) === 'upload'" class="space-y-2">
                         <div class="flex items-start">
                             <span class="text-sm font-medium text-gray-700 w-24">File Name:</span>
-                            <span class="text-sm text-gray-900">{{ request.file_name }}</span>
+                            <span class="text-sm text-gray-900">{{ getDecryptedFileName(request) }}</span>
                         </div>
-                        <div v-if="request.file_description" class="flex items-start">
+                        <div v-if="getDecryptedFileDescription(request)" class="flex items-start">
                             <span class="text-sm font-medium text-gray-700 w-24">Description:</span>
-                            <span class="text-sm text-gray-900">{{ request.file_description }}</span>
+                            <span class="text-sm text-gray-900">{{ getDecryptedFileDescription(request) }}</span>
                         </div>
                     </div>
                     
-                    <div v-else-if="request.action_type === 'edit'" class="space-y-2">
+                    <div v-else-if="getDecryptedActionType(request) === 'edit'" class="space-y-2">
                         <div class="flex items-start">
                             <span class="text-sm font-medium text-gray-700 w-32">Current File:</span>
-                            <span class="text-sm text-gray-900">{{ request.target_file_info?.name }}</span>
+                            <span class="text-sm text-gray-900">{{ getDecryptedTargetName(request) }}</span>
                         </div>
                         <div class="flex items-start">
                             <span class="text-sm font-medium text-gray-700 w-32">New Name:</span>
-                            <span class="text-sm text-gray-900">{{ request.file_name }}</span>
+                            <span class="text-sm text-gray-900">{{ getDecryptedFileName(request) }}</span>
                         </div>
-                        <div v-if="request.file_description" class="flex items-start">
+                        <div v-if="getDecryptedFileDescription(request)" class="flex items-start">
                             <span class="text-sm font-medium text-gray-700 w-32">New Description:</span>
-                            <span class="text-sm text-gray-900">{{ request.file_description }}</span>
+                            <span class="text-sm text-gray-900">{{ getDecryptedFileDescription(request) }}</span>
                         </div>
                     </div>
                     
-                    <div v-else-if="request.action_type === 'delete'" class="space-y-2">
+                    <div v-else-if="getDecryptedActionType(request) === 'delete'" class="space-y-2">
                         <div class="flex items-start">
                             <span class="text-sm font-medium text-gray-700 w-24">File Name:</span>
-                            <span class="text-sm text-gray-900">{{ request.target_file_info?.name }}</span>
+                            <span class="text-sm text-gray-900">{{ getDecryptedTargetName(request) }}</span>
                         </div>
-                        <div v-if="request.target_file_info?.description" class="flex items-start">
+                        <div v-if="getDecryptedTargetDescription(request)" class="flex items-start">
                             <span class="text-sm font-medium text-gray-700 w-24">Description:</span>
-                            <span class="text-sm text-gray-900">{{ request.target_file_info.description }}</span>
+                            <span class="text-sm text-gray-900">{{ getDecryptedTargetDescription(request) }}</span>
                         </div>
                         <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded">
                             <p class="text-xs text-red-800">

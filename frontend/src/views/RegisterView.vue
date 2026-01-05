@@ -1,4 +1,4 @@
-<script>
+﻿<script>
 import axios from 'axios'
 import { useReCaptcha } from 'vue-recaptcha-v3'
 import { encryptMetadata, deriveKeyFromUser } from '@/utils/crypto'
@@ -56,36 +56,35 @@ export default {
         // Génér un mot de passe temporaire simple
         const tempPassword = this.generateTempPassword()
         
-        // Générer clé de chiffrement déterministe pour l'utilisateur
-        // Utilise SEULEMENT username (keycloak_id n'existe pas encore)
+        // IMPORTANT: Générer la clé de chiffrement AVANT de chiffrer les données
+        // Utilise username comme base (sera remplacé par keycloak_id après login)
         deriveKeyFromUser(this.username)
         
         // Chiffrer les données sensibles côté client AVANT envoi
+        // NOTE: username et email restent en clair (nécessaires pour l'auth)
         const encryptedDateOfBirth = this.userType === 'patient' ? encryptMetadata(this.dateOfBirth) : null
-        const encryptedOrganisation = this.userType === 'doctor' ? encryptMetadata(this.organisation) : null
         const encryptedFirstName = encryptMetadata(this.firstName)
         const encryptedLastName = encryptMetadata(this.lastName)
-
+        
         const payload = {
-          username: this.username,
-          email: this.email,
+          username: this.username,  // Plaintext
+          email: this.email,        // Plaintext
           password: tempPassword,
-          first_name: this.firstName,  // Keep plaintext for Keycloak
-          last_name: this.lastName,    // Keep plaintext for Keycloak
           user_type: this.userType,
           recaptcha_token: recaptchaToken,
-          // Encrypted versions stored in Django DB
-          encrypted_first_name: encryptedFirstName,
-          encrypted_last_name: encryptedLastName
+          // Plaintext versions for Keycloak UI
+          plaintext_first_name: this.firstName,
+          plaintext_last_name: this.lastName,
+          // Encrypted versions for Django DB
+          first_name: encryptedFirstName,
+          last_name: encryptedLastName
         }
 
         // Ajouter les champs conditionnels
         if (this.userType === 'patient') {
-          payload.date_of_birth = this.dateOfBirth  // Keep plaintext for validation
-          payload.encrypted_date_of_birth = encryptedDateOfBirth
+          payload.date_of_birth = encryptedDateOfBirth  // Encrypted for DB
         } else if (this.userType === 'doctor') {
-          payload.organisation = this.organisation  // Keep plaintext for display
-          payload.encrypted_organisation = encryptedOrganisation
+          payload.organisation = this.organisation  // Plaintext for display
         }
 
         const response = await axios.post('http://localhost:8000/api/auth/register/', payload)

@@ -1,8 +1,9 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';
 import ConfirmModal from '../components/ConfirmModal.vue';
+import { decryptMetadata } from '../utils/crypto';
 
 const doctors = ref([]);
 const allDoctors = ref([]);
@@ -12,9 +13,11 @@ const error = ref('');
 const currentPatientId = ref(null);
 const showConfirmModal = ref(false);
 const doctorToRevoke = ref(null);
+const decryptedDoctors = ref({}); // Store decrypted doctor names
 
 onMounted(async () => {
     await fetchDoctors();
+    await decryptDoctorsData();
 });
 
 const fetchDoctors = async () => {
@@ -46,6 +49,25 @@ const fetchDoctors = async () => {
     }
 };
 
+// Decrypt doctor names using patient's own key
+const decryptDoctorsData = async () => {
+    for (const doctor of doctors.value) {
+        try {
+            // Decrypt doctor's name using patient's own key (since names are encrypted in Django User)
+            const firstName = doctor.user.first_name ? decryptMetadata(doctor.user.first_name) : '';
+            const lastName = doctor.user.last_name ? decryptMetadata(doctor.user.last_name) : '';
+            
+            decryptedDoctors.value[doctor.id] = { firstName, lastName };
+        } catch (e) {
+            // Fallback to username if decryption fails
+            decryptedDoctors.value[doctor.id] = {
+                firstName: doctor.user.username,
+                lastName: ''
+            };
+        }
+    }
+};
+
 const openRevokeConfirmation = (doctor) => {
     doctorToRevoke.value = doctor;
     showConfirmModal.value = true;
@@ -61,6 +83,7 @@ const confirmRevoke = async () => {
         
         // Refresh list
         await fetchDoctors();
+        await decryptDoctorsData();
         error.value = ''; // Clear any previous errors
     } catch (e) {
         console.error("Failed to revoke doctor:", e);
@@ -75,13 +98,13 @@ const cancelRevoke = () => {
     doctorToRevoke.value = null;
 };
 
-// Get doctor name from user fields (already in plaintext from backend)
+// Get decrypted doctor name
 const getDoctorName = (doctor) => {
-    // Use Django User model fields (backend sends plaintext)
-    if (doctor.user.first_name && doctor.user.last_name) {
-        return { firstName: doctor.user.first_name, lastName: doctor.user.last_name };
+    if (!doctor) return { firstName: 'Unknown', lastName: '' };
+    const data = decryptedDoctors.value[doctor.id];
+    if (data && data.firstName) {
+        return data;
     }
-    // Fallback to username if names are not set
     return { firstName: doctor.user.username, lastName: '' };
 };
 

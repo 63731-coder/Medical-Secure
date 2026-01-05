@@ -1,4 +1,4 @@
-<template>
+﻿<template>
     <div class="relative">
         <!-- Notification Bell Button -->
         <button @click="toggleDropdown" 

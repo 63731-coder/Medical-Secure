@@ -1,9 +1,9 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';
 import StatusAlert from '../components/StatusAlert.vue';
-import { encryptKeyForDoctor } from '../utils/crypto';
+import { encryptKeyForDoctor, decryptMetadata } from '../utils/crypto';
 
 const query = ref('');
 const allDoctors = ref([]);
@@ -13,9 +13,11 @@ const error = ref('');
 const currentPatientId = ref(null);
 const successMessage = ref('');
 const currentUser = ref(null);
+const decryptedDoctors = ref({}); // Store decrypted doctor names
 
 onMounted(async () => {
     await fetchDoctors();
+    await decryptDoctorsData();
 });
 
 const fetchDoctors = async () => {
@@ -45,6 +47,24 @@ const fetchDoctors = async () => {
     }
 };
 
+// Decrypt doctor names using patient's own key
+const decryptDoctorsData = async () => {
+    for (const doctor of allDoctors.value) {
+        try {
+            const firstName = doctor.user.first_name ? decryptMetadata(doctor.user.first_name) : '';
+            const lastName = doctor.user.last_name ? decryptMetadata(doctor.user.last_name) : '';
+            
+            decryptedDoctors.value[doctor.id] = { firstName, lastName };
+        } catch (e) {
+            // Fallback to username if decryption fails
+            decryptedDoctors.value[doctor.id] = {
+                firstName: doctor.user.username,
+                lastName: ''
+            };
+        }
+    }
+};
+
 const addDoctor = async (doctorId) => {
     try {
         successMessage.value = '';
@@ -66,7 +86,7 @@ const addDoctor = async (doctorId) => {
                 try {
                     await api.post('/share-key/', {
                         doctor_id: doctorId,
-                        encrypted_key: encryptedKey
+                        key: encryptedKey
                     });
                 } catch (keyError) {
                     console.error('Failed to share encryption key:', keyError);
@@ -93,13 +113,13 @@ const isAppointed = (doctorId) => {
     return appointedDoctorIds.value.includes(doctorId);
 };
 
-// Get doctor name from user fields (already in plaintext from backend)
+// Get decrypted doctor name
 const getDoctorName = (doctor) => {
-    // Use Django User model fields (backend sends plaintext)
-    if (doctor.user.first_name && doctor.user.last_name) {
-        return { firstName: doctor.user.first_name, lastName: doctor.user.last_name };
+    if (!doctor) return { firstName: 'Unknown', lastName: '' };
+    const data = decryptedDoctors.value[doctor.id];
+    if (data && data.firstName) {
+        return data;
     }
-    // Fallback to username if names are not set
     return { firstName: doctor.user.username, lastName: '' };
 };
 

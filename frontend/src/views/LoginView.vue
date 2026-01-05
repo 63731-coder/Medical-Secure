@@ -1,4 +1,4 @@
-<template>
+﻿<template>
     <div class="max-w-md mx-auto mt-10 bg-white rounded-xl shadow-md overflow-hidden md:max-w-lg border border-gray-100">
         <div class="bg-blue-600 p-6 text-center">
             <h2 class="text-2xl font-bold text-white">

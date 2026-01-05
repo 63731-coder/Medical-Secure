@@ -1,4 +1,4 @@
-<template>
+﻿<template>
     <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-gray-100">
         <h1 class="text-3xl font-bold text-gray-900 mb-6">About SecureMed</h1>
         

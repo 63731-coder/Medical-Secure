@@ -1,18 +1,20 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 import api from '../services/api';
 import StatusAlert from '../components/StatusAlert.vue';
 import { useNotifications } from '../composables/useNotifications';
-import { getCurrentKey } from '../utils/crypto';
+import { getCurrentKey, decryptMetadata, encryptKeyForDoctor } from '../utils/crypto';
 
 const { success: notifySuccess, error: notifyError } = useNotifications();
 const requests = ref([]);
 const loading = ref(true);
 const error = ref('');
 const success = ref('');
+const decryptedDoctors = ref({}); // Store decrypted doctor names
 
 onMounted(async () => {
     await fetchRequests();
+    await decryptDoctorsData();
 });
 
 const fetchRequests = async () => {
@@ -39,6 +41,39 @@ const fetchRequests = async () => {
     }
 };
 
+// Decrypt doctor names using patient's own key
+const decryptDoctorsData = async () => {
+    for (const request of requests.value) {
+        try {
+            const doctor = request.doctor;
+            if (!doctor) continue;
+            
+            // Decrypt doctor's name using patient's own key (since names are encrypted in Django User)
+            const firstName = doctor.user.first_name ? decryptMetadata(doctor.user.first_name) : '';
+            const lastName = doctor.user.last_name ? decryptMetadata(doctor.user.last_name) : '';
+            
+            decryptedDoctors.value[doctor.id] = { firstName, lastName };
+        } catch (e) {
+            // Fallback to username if decryption fails
+            const doctor = request.doctor;
+            decryptedDoctors.value[doctor.id] = {
+                firstName: doctor.user.username,
+                lastName: ''
+            };
+        }
+    }
+};
+
+// Get decrypted doctor name
+const getDoctorName = (doctor) => {
+    if (!doctor) return 'Unknown';
+    const data = decryptedDoctors.value[doctor.id];
+    if (data && data.firstName) {
+        return `${data.firstName} ${data.lastName}`.trim();
+    }
+    return doctor.user.username;
+};
+
 const approveRequest = async (request) => {
     try {
         // First approve the request
@@ -47,28 +82,28 @@ const approveRequest = async (request) => {
         // Then automatically share the encryption key with the doctor
         try {
             const myEncryptionKey = getCurrentKey();
-            const doctorPublicKey = request.doctor.public_key;
             
-            if (doctorPublicKey && myEncryptionKey) {
-                const encryptedKey = await encryptWithPublicKey(myEncryptionKey, doctorPublicKey);
+            if (myEncryptionKey) {
+                // Encrypt patient's key for the doctor using doctor ID
+                const encryptedKey = encryptKeyForDoctor(myEncryptionKey, request.doctor.id);
                 
                 await api.post('/share-key/', {
                     doctor_id: request.doctor.id,
-                    encrypted_key: encryptedKey
+                    key: encryptedKey
                 });
-                
-                console.log('Encryption key shared successfully with doctor');
             }
         } catch (keyError) {
-            console.warn('Failed to share encryption key:', keyError);
+            console.error('Failed to share encryption key:', keyError);
             // Don't fail the whole approval if key sharing fails
         }
         
-        const message = `Dr. ${request.doctor.user.last_name} has been added to your doctors list.`;
+        const doctorName = getDoctorName(request.doctor);
+        const message = `Dr. ${doctorName} has been added to your doctors list.`;
         success.value = message;
         notifySuccess(message);
         error.value = '';
         await fetchRequests();
+        await decryptDoctorsData();
     } catch (e) {
         console.error("Failed to approve request:", e);
         const errorMsg = e.response?.data?.error || "Failed to approve request.";
@@ -80,14 +115,25 @@ const approveRequest = async (request) => {
 const rejectRequest = async (request) => {
     try {
         await api.rejectRequest(request.id);
-        success.value = `Request from Dr. ${request.doctor.user.last_name} has been rejected.`;
+        const doctorName = getDoctorName(request.doctor);
+        success.value = `Request from Dr. ${doctorName} has been rejected.`;
         error.value = '';
         await fetchRequests();
+        await decryptDoctorsData();
     } catch (e) {
         console.error("Failed to reject request:", e);
         error.value = e.response?.data?.error || "Failed to reject request.";
     }
 };
+
+// Decrypt request action type
+const getDecryptedActionType = (request) => {
+    // action_type is NOT encrypted on backend - it's stored as plain 'add' or 'remove'
+    // This is not sensitive data, just an action type
+    if (!request.action_type) return 'add';
+    return request.action_type;
+};
+
 </script>
 
 <template>
@@ -117,15 +163,15 @@ const rejectRequest = async (request) => {
             <div v-for="request in requests" :key="request.id" 
                 :class="[
                     'rounded-lg shadow-md border p-6',
-                    request.action_type === 'remove' ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
+                    getDecryptedActionType(request) === 'remove' ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'
                 ]">
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
                             <h3 class="font-bold text-lg text-gray-900">
-                                Dr. {{ request.doctor.user.first_name }} {{ request.doctor.user.last_name }}
+                                Dr. {{ getDoctorName(request.doctor) }}
                             </h3>
-                            <span v-if="request.action_type === 'remove'" 
+                            <span v-if="getDecryptedActionType(request) === 'remove'" 
                                 class="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
                                 REMOVAL REQUEST
                             </span>
@@ -142,14 +188,14 @@ const rejectRequest = async (request) => {
 
                 <div :class="[
                     'border rounded-lg p-4 mb-4',
-                    request.action_type === 'remove' ? 'bg-red-100 border-red-300' : 'bg-blue-50 border-blue-200'
+                    getDecryptedActionType(request) === 'remove' ? 'bg-red-100 border-red-300' : 'bg-blue-50 border-blue-200'
                 ]">
                     <p :class="[
                         'text-sm',
-                        request.action_type === 'remove' ? 'text-red-900' : 'text-blue-900'
+                        getDecryptedActionType(request) === 'remove' ? 'text-red-900' : 'text-blue-900'
                     ]">
-                        <strong>Dr. {{ request.doctor.user.last_name }}</strong> 
-                        <span v-if="request.action_type === 'add'">
+                        <strong>Dr. {{ getDoctorName(request.doctor) }}</strong> 
+                        <span v-if="getDecryptedActionType(request) === 'add'">
                             is requesting access to your medical records.
                             If you approve, they will be able to view and upload medical files to your account.
                         </span>

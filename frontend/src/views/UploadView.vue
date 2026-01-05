@@ -1,12 +1,13 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 import api from '../services/api';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { encryptData, encryptKeyForDoctor, decryptSharedKey, encryptWithSharedKey, encryptMetadata, getCurrentKey, decryptWithSharedKey } from '../utils/crypto';
 import StatusAlert from '../components/StatusAlert.vue';
 import { useNotifications } from '../composables/useNotifications';
 
 const router = useRouter();
+const route = useRoute();
 const { success: notifySuccess, error: notifyError } = useNotifications();
 
 const file = ref(null);
@@ -32,6 +33,11 @@ onMounted(async () => {
             const patientsRes = await api.getPatients();
             patients.value = patientsRes.data;
             
+            // Check if patient_id is in URL (coming from patient's records page)
+            if (route.query.patient_id) {
+                selectedPatient.value = route.query.patient_id;
+            }
+            
             // Decrypt patient names
             await decryptPatientsData();
         }
@@ -50,12 +56,12 @@ const decryptPatientsData = async () => {
     for (const patient of patients.value) {
         try {
             const keyResponse = await api.get(`/get-shared-key/?patient_id=${patient.id}`);
-            const encryptedPatientKey = keyResponse.data.encrypted_key;
+            const encryptedPatientKey = keyResponse.data.key;
             const patientKey = decryptSharedKey(encryptedPatientKey, currentDoctorId.value);
             
-            if (patientKey && patient.encrypted_first_name && patient.encrypted_last_name) {
-                const firstName = decryptWithSharedKey(patient.encrypted_first_name, patientKey);
-                const lastName = decryptWithSharedKey(patient.encrypted_last_name, patientKey);
+            if (patientKey && patient.first_name && patient.last_name) {
+                const firstName = decryptWithSharedKey(patient.first_name, patientKey);
+                const lastName = decryptWithSharedKey(patient.last_name, patientKey);
                 decryptedPatients.value[patient.id] = { firstName, lastName };
             } else {
                 // Fallback to username if decryption fails
@@ -71,6 +77,16 @@ const decryptPatientsData = async () => {
                 lastName: ''
             };
         }
+    }
+};
+
+const goBackToRecords = () => {
+    // If doctor and patient is selected, go to patient's records
+    if (userType.value === 'doctor' && selectedPatient.value) {
+        router.push(`/records?patient_id=${selectedPatient.value}`);
+    } else {
+        // Otherwise go to own records
+        router.push('/records');
     }
 };
 
@@ -147,7 +163,7 @@ const handleUpload = async () => {
                         params: { patient_id: selectedPatient.value }
                     });
                     
-                    const encryptedSharedKey = keyResponse.data.encrypted_key;
+                    const encryptedSharedKey = keyResponse.data.key;
                     
                     // Decrypt patient's key using doctor's ID
                     const patientKey = decryptSharedKey(encryptedSharedKey, currentDoctorId.value);
@@ -181,8 +197,6 @@ const handleUpload = async () => {
             const formData = new FormData();
             // Combine title and extension for the document name
             const fullTitle = title.value + fileExtension.value;
-            formData.append('name', fullTitle);
-            formData.append('description', ''); // Add empty description field
             formData.append('file', encryptedBlob, file.value.name + ".enc"); // Add .enc extension
             
             // Encrypt sensitive metadata (file name and date) BEFORE sending to server
@@ -195,7 +209,7 @@ const handleUpload = async () => {
                     const keyResponse = await api.get('/get-shared-key/', {
                         params: { patient_id: selectedPatient.value }
                     });
-                    const patientKey = decryptSharedKey(keyResponse.data.encrypted_key, currentDoctorId.value);
+                    const patientKey = decryptSharedKey(keyResponse.data.key, currentDoctorId.value);
                     encryptedName = encryptWithSharedKey(fullTitle, patientKey);
                     encryptedDate = encryptWithSharedKey(currentDate, patientKey);
                 } catch (keyError) {
@@ -204,18 +218,18 @@ const handleUpload = async () => {
                 }
                 
                 formData.append('patient_id', selectedPatient.value);
-                formData.append('encrypted_file_name', encryptedName);
-                formData.append('encrypted_file_description', '');
-                formData.append('encrypted_file_date', encryptedDate);
+                formData.append('file_name', encryptedName);
+                formData.append('file_description', '');
+                formData.append('file_date', encryptedDate);
             } else {
                 // Patient: use their own key (simpler)
                 encryptedName = encryptMetadata(fullTitle);
                 encryptedDate = encryptMetadata(currentDate);
             }
             
-            formData.append('encrypted_name', encryptedName);
-            formData.append('encrypted_description', ''); // Empty encrypted description
-            formData.append('encrypted_date', encryptedDate);
+            formData.append('name', encryptedName);
+            formData.append('description', ''); // Empty encrypted description
+            formData.append('date', encryptedDate);
 
             // 4. Send to Server
             status.value = { type: 'info', message: "Uploading encrypted data..." };
@@ -239,7 +253,7 @@ const handleUpload = async () => {
                             
                             await api.post('/share-key/', {
                                 doctor_id: doctor.id,
-                                encrypted_key: encryptedKey
+                                key: encryptedKey
                             });
                         } catch (keyError) {
                             console.error(`Failed to share key with doctor ${doctor.id}:`, keyError);
@@ -254,20 +268,17 @@ const handleUpload = async () => {
             selectedPatient.value = null;
 
         } catch (error) {
-            console.error('Upload error:', error);
-            console.error('Response data:', error.response?.data);
-            console.error('Response status:', error.response?.status);
-            
             // Check if it's a pending request (for doctors)
             if (error.response?.data?.pending) {
                 status.value = { type: 'success', message: error.response.data.message };
                 notifySuccess('Upload request sent to patient for approval');
             } else {
+                console.error('Upload error:', error);
                 const errorMsg = error.response?.data?.detail || error.response?.data?.error || error.message;
                 status.value = { type: 'error', message: "Upload failed: " + errorMsg };
                 notifyError('Upload failed: ' + errorMsg);
             }
-        } finally {getPatientName(patient)
+        } finally {
             loading.value = false;
         }
     };
@@ -278,7 +289,7 @@ const handleUpload = async () => {
     <div class="max-w-xl mx-auto bg-white p-8 rounded-xl shadow border border-gray-100 mt-10">
         <div class="flex items-center justify-between mb-6">
             <h2 class="text-2xl font-bold text-gray-900">Secure Document Upload</h2>
-            <button @click="router.push('/records')" 
+            <button @click="goBackToRecords" 
                 class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />

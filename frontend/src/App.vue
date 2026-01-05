@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
 import NotificationCenter from './components/NotificationCenter.vue';

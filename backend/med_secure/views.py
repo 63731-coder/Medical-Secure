@@ -531,12 +531,12 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
         # Debug: log what we received
         print(f"[DEBUG] File upload - User: {user.username}, Type: {hasattr(user, 'patient_profile')}")
         print(f"[DEBUG] Request data keys: {self.request.data.keys()}")
-        print(f"[DEBUG] Has encrypted_name: {'encrypted_name' in self.request.data}")
+        print(f"[DEBUG] Has name: {'name' in self.request.data}")
         
         # If patient uploads for themselves
         if hasattr(user, 'patient_profile'):
             try:
-                print(f"[DEBUG] Encrypted metadata - encrypted_name present: {'encrypted_name' in self.request.data}")
+                print(f"[DEBUG] Encrypted metadata - name present: {'name' in self.request.data}")
                 
                 # Save with only the foreign keys - encrypted fields are already in serializer.validated_data
                 serializer.save(
@@ -580,28 +580,26 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                 file_obj = self.request.FILES.get('file')
                 
                 # Get encrypted metadata (only use encrypted versions)
-                encrypted_file_name = self.request.data.get('encrypted_file_name')
-                encrypted_file_description = self.request.data.get('encrypted_file_description')
-                encrypted_file_date = self.request.data.get('encrypted_file_date')
+                file_name = self.request.data.get('file_name')
+                file_description = self.request.data.get('file_description')
+                file_date = self.request.data.get('file_date')
                 
                 # Handle multipart form data for encrypted fields
-                if isinstance(encrypted_file_name, list):
-                    encrypted_file_name = encrypted_file_name[0] if encrypted_file_name else None
-                if isinstance(encrypted_file_description, list):
-                    encrypted_file_description = encrypted_file_description[0] if encrypted_file_description else None
-                if isinstance(encrypted_file_date, list):
-                    encrypted_file_date = encrypted_file_date[0] if encrypted_file_date else None
+                if isinstance(file_name, list):
+                    file_name = file_name[0] if file_name else None
+                if isinstance(file_description, list):
+                    file_description = file_description[0] if file_description else None
+                if isinstance(file_date, list):
+                    file_date = file_date[0] if file_date else None
                 
                 FileActionRequest.objects.create(
                     patient=patient,
                     doctor=user.doctor_profile,
                     action_type='upload',
                     file_data=file_obj,
-                    file_name='',  # Security: only store encrypted version
-                    file_description='',  # Security: only store encrypted version
-                    encrypted_file_name=encrypted_file_name,
-                    encrypted_file_description=encrypted_file_description,
-                    encrypted_file_date=encrypted_file_date,
+                    file_name=file_name,
+                    file_description=file_description,
+                    file_date=file_date,
                     status='pending'
                 )
                 
@@ -683,8 +681,10 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                               status=status.HTTP_403_FORBIDDEN)
         
         # Return file (already encrypted)
+        # Note: Don't send filename in Content-Disposition as the real name is encrypted
+        # Client will set the correct decrypted filename
         response = FileResponse(medical_file.file.open('rb'))
-        response['Content-Disposition'] = f'attachment; filename="{medical_file.file.name}"'
+        response['Content-Type'] = 'application/octet-stream'
         return response
     
     @action(detail=True, methods=['put', 'patch'])
@@ -713,12 +713,12 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                 medical_file.description = request.data['description']
             
             # Update encrypted metadata
-            if 'encrypted_name' in request.data:
-                medical_file.encrypted_name = request.data['encrypted_name']
-            if 'encrypted_description' in request.data:
-                medical_file.encrypted_description = request.data['encrypted_description']
-            if 'encrypted_date' in request.data:
-                medical_file.encrypted_date = request.data['encrypted_date']
+            if 'name' in request.data:
+                medical_file.name = request.data['name']
+            if 'description' in request.data:
+                medical_file.description = request.data['description']
+            if 'date' in request.data:
+                medical_file.date = request.data['date']
             
             medical_file.save()
             serializer = MedicalFileSerializer(medical_file)
@@ -739,9 +739,9 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
             file_description = request.data.get('description', medical_file.description)
             
             # Get encrypted metadata
-            encrypted_file_name = request.data.get('encrypted_file_name')
-            encrypted_file_description = request.data.get('encrypted_file_description')
-            encrypted_file_date = request.data.get('encrypted_file_date')
+            file_name = request.data.get('file_name')
+            file_description = request.data.get('file_description')
+            file_date = request.data.get('file_date')
             
             FileActionRequest.objects.create(
                 patient=medical_file.patient,
@@ -751,9 +751,7 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                 file_data=file_obj,
                 file_name=file_name,
                 file_description=file_description,
-                encrypted_file_name=encrypted_file_name,
-                encrypted_file_description=encrypted_file_description,
-                encrypted_file_date=encrypted_file_date,
+                file_date=file_date,
                 status='pending'
             )
             
@@ -819,12 +817,17 @@ class FileActionRequestViewSet(viewsets.ModelViewSet):
         action_request.save()
         
         try:
+            # Note: action_type is encrypted - we cannot decrypt on backend
+            # The execute_action method should not require decrypted_action_type parameter
+            # Instead, execute_action should work with encrypted fields directly
             action_request.execute_action()
             return Response({
                 'message': 'Request approved and executed',
                 'request': FileActionRequestSerializer(action_request).data
             })
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             action_request.status = 'pending'
             action_request.save()
             return Response({
@@ -875,7 +878,7 @@ class ShareEncryptionKeyView(APIView):
     POST /api/share-key/
     Body: {
         "doctor_id": 1,
-        "encrypted_key": "base64_encrypted_key_string"
+        "key": "base64_key_string"
     }
     """
     permission_classes = [permissions.IsAuthenticated]
@@ -888,10 +891,10 @@ class ShareEncryptionKeyView(APIView):
         
         patient = request.user.patient_profile
         doctor_id = request.data.get('doctor_id')
-        encrypted_key = request.data.get('encrypted_key')
+        key = request.data.get('key')
         
-        if not doctor_id or not encrypted_key:
-            return Response({'error': 'doctor_id and encrypted_key are required'}, 
+        if not doctor_id or not key:
+            return Response({'error': 'doctor_id and key are required'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
         try:
@@ -909,7 +912,7 @@ class ShareEncryptionKeyView(APIView):
         shared_key, created = SharedEncryptionKey.objects.update_or_create(
             patient=patient,
             doctor=doctor,
-            defaults={'encrypted_key': encrypted_key}
+            defaults={'key': key}
         )
         
         return Response({
@@ -953,7 +956,7 @@ class GetSharedKeyView(APIView):
         try:
             shared_key = SharedEncryptionKey.objects.get(patient=patient, doctor=doctor)
             return Response({
-                'encrypted_key': shared_key.encrypted_key,
+                'key': shared_key.key,
                 'patient_id': patient.id,
                 'patient_username': patient.user.username
             })

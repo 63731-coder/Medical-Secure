@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import api from '../services/api';

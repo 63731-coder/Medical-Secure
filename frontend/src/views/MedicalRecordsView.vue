@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
@@ -27,8 +27,8 @@ const editName = ref('');
 const editDescription = ref('');
 const editLoading = ref(false);
 const editFileExtension = ref(''); // Store file extension
-const decryptedPatientName = ref(''); // Store decrypted patient name
-const decryptedPatientDOB = ref(''); // Store decrypted date of birth
+const decryptedPatientName = ref('Loading...'); // Store decrypted patient name
+const decryptedPatientDOB = ref('N/A'); // Store decrypted date of birth
 
 // Fetch patient info if patient_id is provided
 const fetchPatient = async () => {
@@ -56,14 +56,27 @@ const decryptPatientData = async () => {
     
     try {
         const keyResponse = await api.get(`/get-shared-key/?patient_id=${patient.value.id}`);
-        const encryptedPatientKey = keyResponse.data.encrypted_key;
+        const encryptedPatientKey = keyResponse.data.key;
         const patientKey = decryptSharedKey(encryptedPatientKey, currentDoctorId.value);
         
-        if (patientKey && patient.value.encrypted_first_name && patient.value.encrypted_last_name) {
-            decryptedPatientName.value = `${decryptWithSharedKey(patient.value.encrypted_first_name, patientKey)} ${decryptWithSharedKey(patient.value.encrypted_last_name, patientKey)}`;
+        if (patientKey) {
+            // Try to decrypt from User model first (new location), then Patient model (legacy)
+            const firstName = patient.value.user.first_name ? 
+                decryptWithSharedKey(patient.value.user.first_name, patientKey) : 
+                (patient.value.first_name ? decryptWithSharedKey(patient.value.first_name, patientKey) : '');
             
-            decryptedPatientDOB.value = patient.value.encrypted_date_of_birth
-                ? decryptWithSharedKey(patient.value.encrypted_date_of_birth, patientKey)
+            const lastName = patient.value.user.last_name ? 
+                decryptWithSharedKey(patient.value.user.last_name, patientKey) : 
+                (patient.value.last_name ? decryptWithSharedKey(patient.value.last_name, patientKey) : '');
+            
+            if (firstName || lastName) {
+                decryptedPatientName.value = `${firstName} ${lastName}`.trim();
+            } else {
+                decryptedPatientName.value = `@${patient.value.user.username}`;
+            }
+            
+            decryptedPatientDOB.value = patient.value.date_of_birth
+                ? decryptWithSharedKey(patient.value.date_of_birth, patientKey)
                 : 'N/A';
         } else {
             // Fallback to username if decryption fails
@@ -90,6 +103,12 @@ const fetchRecords = async () => {
         const response = await api.get(url);
         
         records.value = response.data;
+        
+        // Decrypt metadata for doctors viewing patient files
+        if (userType.value === 'doctor' && patientId.value) {
+            await decryptRecordsMetadata();
+        }
+        
         loading.value = false;
     } catch (e) {
         console.error("Failed to load records:", e);
@@ -98,32 +117,134 @@ const fetchRecords = async () => {
     }
 };
 
-// Decrypt metadata for display
-const getDecryptedName = (record) => {
-    if (!record.encrypted_name) return record.name || 'Untitled';
+// Decrypt records metadata for doctor viewing patient files
+const decryptRecordsMetadata = async () => {
+    if (!records.value.length || !patientId.value || !currentDoctorId.value) {
+        console.error('Missing data for decryption:', { 
+            recordsCount: records.value.length, 
+            patientId: patientId.value, 
+            doctorId: currentDoctorId.value 
+        });
+        return;
+    }
     
     try {
-        if (userType.value === 'doctor' && patientId.value) {
-            // Doctor viewing patient file - need to use shared key
-            // This is a simplified approach - in production, cache the shared key
-            return record.name; // Fallback to plaintext for now (will decrypt on mount)
+        // Get shared encryption key from API
+        const keyResponse = await api.get('/get-shared-key/', {
+            params: { patient_id: patientId.value }
+        });
+        
+        const encryptedSharedKey = keyResponse.data.key;
+        const patientKey = decryptSharedKey(encryptedSharedKey, currentDoctorId.value);
+        
+        if (!patientKey) {
+            console.error("Failed to decrypt shared encryption key");
+            return;
         }
-        return decryptMetadata(record.encrypted_name) || record.name || 'Untitled';
+        
+        // Decrypt metadata for each record and update reactively
+        records.value = records.value.map(record => {
+            const decryptedRecord = { ...record };
+            
+            if (record.name) {
+                try {
+                    decryptedRecord._decryptedName = decryptWithSharedKey(record.name, patientKey);
+                } catch (e) {
+                    console.error('Failed to decrypt record name:', e.message);
+                    decryptedRecord._decryptedName = record.name;
+                }
+            }
+            
+            if (record.description) {
+                try {
+                    decryptedRecord._decryptedDescription = decryptWithSharedKey(record.description, patientKey);
+                } catch (e) {
+                    console.error('Failed to decrypt record description:', e.message);
+                    decryptedRecord._decryptedDescription = record.description;
+                }
+            }
+            
+            if (record.date) {
+                try {
+                    decryptedRecord._decryptedDate = decryptWithSharedKey(record.date, patientKey);
+                } catch (e) {
+                    console.error('Failed to decrypt record date:', e.message);
+                    decryptedRecord._decryptedDate = record.created_at;
+                }
+            }
+            
+            return decryptedRecord;
+        });
+    } catch (e) {
+        console.error("Failed to decrypt records metadata:", e.message);
+    }
+};
+
+// Decrypt metadata for display
+const getDecryptedName = (record) => {
+    if (!record.name) return 'Untitled';
+    
+    try {
+        // Patient can decrypt directly with their own key
+        if (userType.value !== 'doctor') {
+            return decryptMetadata(record.name) || 'Untitled';
+        }
+        
+        // Doctor needs to use shared patient key
+        // Note: This is synchronous, so we return the cached decrypted value
+        // The actual decryption happens in decryptRecordsMetadata()
+        return record._decryptedName || 'Encrypted';
     } catch (e) {
         console.error('Failed to decrypt name:', e);
-        return record.name || 'Encrypted';
+        return 'Encrypted';
+    }
+};
+
+// Format date of birth for display
+const formatDateOfBirth = () => {
+    if (!decryptedPatientDOB.value || decryptedPatientDOB.value === 'N/A') {
+        return 'N/A';
+    }
+    
+    try {
+        const date = new Date(decryptedPatientDOB.value);
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+            // If not a valid date, try to return the raw value (might be already formatted)
+            return decryptedPatientDOB.value;
+        }
+        return date.toLocaleDateString();
+    } catch (e) {
+        return decryptedPatientDOB.value || 'N/A';
     }
 };
 
 const getDecryptedDate = (record) => {
-    if (!record.encrypted_date) return record.created_at;
+    if (!record.date) return record.created_at;
     
     try {
-        const decrypted = decryptMetadata(record.encrypted_date);
-        return decrypted || record.created_at;
+        if (userType.value !== 'doctor') {
+            const decrypted = decryptMetadata(record.date);
+            return decrypted || record.created_at;
+        }
+        return record._decryptedDate || record.created_at;
     } catch (e) {
         console.error('Failed to decrypt date:', e);
         return record.created_at;
+    }
+};
+
+const getDecryptedDescription = (record) => {
+    if (!record.description) return '';
+    
+    try {
+        if (userType.value !== 'doctor') {
+            return decryptMetadata(record.description) || '';
+        }
+        return record._decryptedDescription || '';
+    } catch (e) {
+        console.error('Failed to decrypt description:', e);
+        return '';
     }
 };
 
@@ -146,7 +267,7 @@ const handleDownload = async (record) => {
                     params: { patient_id: patientId.value }
                 });
                 
-                const encryptedSharedKey = keyResponse.data.encrypted_key;
+                const encryptedSharedKey = keyResponse.data.key;
                 
                 // SIMPLIFIED: Decrypt using doctor ID only
                 const patientKey = decryptSharedKey(encryptedSharedKey, currentDoctorId.value);
@@ -178,13 +299,35 @@ const handleDownload = async (record) => {
         }
         
         // 5. Create download link for decrypted file
-        const blob = new Blob([bytesArray], { type: 'application/octet-stream' });
+        // Get the decrypted name (record.name is '[ENCRYPTED]' placeholder)
+        const decryptedName = getDecryptedName(record);
+        const cleanName = decryptedName.replace(/\.enc$/, '');
+        
+        // Detect MIME type from file extension
+        let mimeType = 'application/octet-stream';
+        const extension = cleanName.split('.').pop().toLowerCase();
+        const mimeTypes = {
+            'pdf': 'application/pdf',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'txt': 'text/plain',
+            'zip': 'application/zip'
+        };
+        
+        if (mimeTypes[extension]) {
+            mimeType = mimeTypes[extension];
+        }
+        
+        const blob = new Blob([bytesArray], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        
-        // Remove .enc extension properly
-        const cleanName = record.name.replace(/\.enc$/, '');
         link.download = cleanName;
         
         link.click();
@@ -235,14 +378,17 @@ const cancelDelete = () => {
 const getDeleteModalMessage = () => {
     if (!recordToDelete.value) return '';
     
+    const fileName = getDecryptedName(recordToDelete.value);
     return userType.value === 'doctor' 
-        ? `Request to delete "${recordToDelete.value.name}"? The patient must approve this action.`
-        : `Are you sure you want to delete "${recordToDelete.value.name}"? This action cannot be undone.`;
+        ? `Request to delete "${fileName}"? The patient must approve this action.`
+        : `Are you sure you want to delete "${fileName}"? This action cannot be undone.`;
 };
 
 const openEditModal = (record) => {
     recordToEdit.value = record;
-    const cleanName = record.name.replace('.enc', '');
+    // Use decrypted values, not encrypted ones
+    const decryptedName = getDecryptedName(record);
+    const cleanName = decryptedName.replace('.enc', '');
     
     // Extract extension from current file name
     const lastDotIndex = cleanName.lastIndexOf('.');
@@ -254,7 +400,7 @@ const openEditModal = (record) => {
         editName.value = cleanName;
     }
     
-    editDescription.value = record.description || '';
+    editDescription.value = getDecryptedDescription(record) || '';
     editFile.value = null;
     showEditModal.value = true;
 };
@@ -303,7 +449,7 @@ const saveEdit = async () => {
         const encryptionKey = userType.value === 'doctor' && patientId.value ?
             // Doctor: use patient's shared key
             decryptSharedKey(
-                (await api.get('/get-shared-key/', { params: { patient_id: patientId.value } })).data.encrypted_key,
+                (await api.get('/get-shared-key/', { params: { patient_id: patientId.value } })).data.key,
                 currentDoctorId.value
             ) :
             // Patient: use own key
@@ -314,15 +460,15 @@ const saveEdit = async () => {
         const encryptedDescription = encryptWithSharedKey(editDescription.value, encryptionKey) || encryptMetadata(editDescription.value);
         const encryptedDate = encryptWithSharedKey(currentDate, encryptionKey) || encryptMetadata(currentDate);
         
-        formData.append('encrypted_name', encryptedName);
-        formData.append('encrypted_description', encryptedDescription);
-        formData.append('encrypted_date', encryptedDate);
+        formData.append('name', encryptedName);
+        formData.append('description', encryptedDescription);
+        formData.append('date', encryptedDate);
         
         // If doctor, add encrypted_file_* fields
         if (userType.value === 'doctor') {
-            formData.append('encrypted_file_name', encryptedName);
-            formData.append('encrypted_file_description', encryptedDescription);
-            formData.append('encrypted_file_date', encryptedDate);
+            formData.append('file_name', encryptedName);
+            formData.append('file_description', encryptedDescription);
+            formData.append('file_date', encryptedDate);
         }
         
         // If new file is provided, encrypt and add it
@@ -349,7 +495,7 @@ const saveEdit = async () => {
                                     params: { patient_id: patientId.value }
                                 });
                                 
-                                const encryptedSharedKey = keyResponse.data.encrypted_key;
+                                const encryptedSharedKey = keyResponse.data.key;
                                 
                                 // Decrypt patient's key using doctor's ID
                                 const patientKey = decryptSharedKey(encryptedSharedKey, currentDoctorId.value);
@@ -452,14 +598,14 @@ onMounted(async () => {
                     </button>
                     <div>
                         <h1 class="text-3xl font-bold text-gray-900">
-                            {{ patient ? (decryptedPatientName || `${patient.user.first_name} ${patient.user.last_name}`) + "'s Medical Records" : 'My Medical Records' }}
+                            {{ patient ? decryptedPatientName + "'s Medical Records" : 'My Medical Records' }}
                         </h1>
                         <p v-if="patient" class="text-gray-600 mt-1">
-                            Date of Birth: {{ decryptedPatientDOB ? new Date(decryptedPatientDOB).toLocaleDateString() : (patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString() : 'N/A') }}
+                            Date of Birth: {{ formatDateOfBirth() }}
                         </p>
                     </div>
                 </div>
-                <button @click="router.push('/upload')"
+                <button @click="patientId ? router.push(`/upload?patient_id=${patientId}`) : router.push('/upload')"
                     class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -491,7 +637,7 @@ onMounted(async () => {
                     <tr v-for="file in records" :key="file.id" class="hover:bg-gray-50 transition">
                         <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ getDecryptedName(file) }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ new Date(getDecryptedDate(file)).toLocaleDateString() }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ file.description || 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">{{ getDecryptedDescription(file) || 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                             <button @click="handleDownload(file)" class="text-blue-600 hover:text-blue-900 font-medium inline-flex items-center gap-1">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
