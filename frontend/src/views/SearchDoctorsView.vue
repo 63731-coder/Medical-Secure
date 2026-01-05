@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';
 import StatusAlert from '../components/StatusAlert.vue';
-import { encryptKeyForDoctor, decryptMetadata } from '../utils/crypto';
+import { encryptKeyForDoctor } from '../utils/crypto';
 
 const query = ref('');
 const allDoctors = ref([]);
@@ -47,16 +47,31 @@ const fetchDoctors = async () => {
     }
 };
 
-// Decrypt doctor names using patient's own key
+// Check if a string looks like encrypted data (Base64 CryptoJS format)
+const isEncryptedString = (str) => {
+    if (!str) return false;
+    // CryptoJS encrypted strings start with "U2FsdGVkX1" (Base64 for "Salted__")
+    return str.startsWith('U2FsdGVkX1');
+};
+
+// Get doctor names - doctors' names should NOT be encrypted (public professional info)
+// But handle legacy encrypted names gracefully by falling back to username
 const decryptDoctorsData = async () => {
     for (const doctor of allDoctors.value) {
         try {
-            const firstName = doctor.user.first_name ? decryptMetadata(doctor.user.first_name) : '';
-            const lastName = doctor.user.last_name ? decryptMetadata(doctor.user.last_name) : '';
+            // Doctor names should be in plain text in Django User model
+            let firstName = doctor.user.first_name || '';
+            let lastName = doctor.user.last_name || '';
+            
+            // Check if names are encrypted (legacy issue) - use username instead
+            if (isEncryptedString(firstName) || isEncryptedString(lastName)) {
+                firstName = doctor.user.username;
+                lastName = '';
+            }
             
             decryptedDoctors.value[doctor.id] = { firstName, lastName };
         } catch (e) {
-            // Fallback to username if decryption fails
+            // Fallback to username if something fails
             decryptedDoctors.value[doctor.id] = {
                 firstName: doctor.user.username,
                 lastName: ''

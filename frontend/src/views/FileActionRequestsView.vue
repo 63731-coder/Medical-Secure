@@ -85,17 +85,26 @@ const getActionColor = (actionType) => {
     return colors[actionType] || 'gray';
 };
 
-// Get decrypted doctor name
+// Check if a string looks like encrypted data (Base64 CryptoJS format)
+const isEncryptedString = (str) => {
+    if (!str) return false;
+    return str.startsWith('U2FsdGVkX1');
+};
+
+// Get doctor name - doctors' names should NOT be encrypted (public professional info)
 const getDoctorName = (doctor) => {
     if (!doctor) return '@unknown';
-    try {
-        const firstName = doctor.user.first_name ? decryptMetadata(doctor.user.first_name) : '';
-        const lastName = doctor.user.last_name ? decryptMetadata(doctor.user.last_name) : '';
-        if (firstName || lastName) {
-            return `${firstName} ${lastName}`.trim();
-        }
-    } catch (e) {
-        // Fallback to username if decryption fails
+    
+    let firstName = doctor.user.first_name || '';
+    let lastName = doctor.user.last_name || '';
+    
+    // Check if names are encrypted (legacy issue) - use username instead
+    if (isEncryptedString(firstName) || isEncryptedString(lastName)) {
+        return doctor.user.username;
+    }
+    
+    if (firstName || lastName) {
+        return `${firstName} ${lastName}`.trim();
     }
     return doctor.user.username;
 };

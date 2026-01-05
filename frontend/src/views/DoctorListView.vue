@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';
 import ConfirmModal from '../components/ConfirmModal.vue';
-import { decryptMetadata } from '../utils/crypto';
 
 const doctors = ref([]);
 const allDoctors = ref([]);
@@ -13,7 +12,7 @@ const error = ref('');
 const currentPatientId = ref(null);
 const showConfirmModal = ref(false);
 const doctorToRevoke = ref(null);
-const decryptedDoctors = ref({}); // Store decrypted doctor names
+const decryptedDoctors = ref({}); // Store doctor names
 
 onMounted(async () => {
     await fetchDoctors();
@@ -49,17 +48,32 @@ const fetchDoctors = async () => {
     }
 };
 
-// Decrypt doctor names using patient's own key
+// Check if a string looks like encrypted data (Base64 CryptoJS format)
+const isEncryptedString = (str) => {
+    if (!str) return false;
+    // CryptoJS encrypted strings start with "U2FsdGVkX1" (Base64 for "Salted__")
+    return str.startsWith('U2FsdGVkX1');
+};
+
+// Get doctor names - doctors' names should NOT be encrypted (public professional info)
+// But handle legacy encrypted names gracefully by falling back to username
 const decryptDoctorsData = async () => {
     for (const doctor of doctors.value) {
         try {
-            // Decrypt doctor's name using patient's own key (since names are encrypted in Django User)
-            const firstName = doctor.user.first_name ? decryptMetadata(doctor.user.first_name) : '';
-            const lastName = doctor.user.last_name ? decryptMetadata(doctor.user.last_name) : '';
+            // Doctor names should be in plain text in Django User model
+            // If they look encrypted (legacy data), fall back to username
+            let firstName = doctor.user.first_name || '';
+            let lastName = doctor.user.last_name || '';
+            
+            // Check if names are encrypted (legacy issue) - use username instead
+            if (isEncryptedString(firstName) || isEncryptedString(lastName)) {
+                firstName = doctor.user.username;
+                lastName = '';
+            }
             
             decryptedDoctors.value[doctor.id] = { firstName, lastName };
         } catch (e) {
-            // Fallback to username if decryption fails
+            // Fallback to username if something fails
             decryptedDoctors.value[doctor.id] = {
                 firstName: doctor.user.username,
                 lastName: ''

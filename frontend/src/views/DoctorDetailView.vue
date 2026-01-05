@@ -66,17 +66,26 @@ const cancelRevoke = () => {
 
 const goBack = () => router.back();
 
-// Get decrypted doctor name
+// Check if a string looks like encrypted data (Base64 CryptoJS format)
+const isEncryptedString = (str) => {
+    if (!str) return false;
+    return str.startsWith('U2FsdGVkX1');
+};
+
+// Get doctor name - doctors' names should NOT be encrypted (public professional info)
 const getDoctorName = (doc) => {
     if (!doc) return { firstName: '', lastName: '' };
-    try {
-        const firstName = doc.user.first_name ? decryptMetadata(doc.user.first_name) : '';
-        const lastName = doc.user.last_name ? decryptMetadata(doc.user.last_name) : '';
-        if (firstName || lastName) {
-            return { firstName, lastName };
-        }
-    } catch (e) {
-        // Fallback to username if decryption fails
+    
+    let firstName = doc.user.first_name || '';
+    let lastName = doc.user.last_name || '';
+    
+    // Check if names are encrypted (legacy issue) - use username instead
+    if (isEncryptedString(firstName) || isEncryptedString(lastName)) {
+        return { firstName: doc.user.username, lastName: '' };
+    }
+    
+    if (firstName || lastName) {
+        return { firstName, lastName };
     }
     return { firstName: doc.user.username, lastName: '' };
 };
