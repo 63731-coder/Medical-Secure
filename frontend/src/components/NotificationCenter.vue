@@ -155,7 +155,7 @@ const fetchNotifications = async () => {
                     id: `file_action_${request.id}`,
                     type: 'file_action',
                     title: 'File Action Request',
-                    message: `Dr. ${request.doctor.user.last_name} wants to ${actionText} for ${request.patient.user.first_name}`,
+                    message: `Dr. ${request.doctor.user.last_name} wants to ${actionText}`,
                     created_at: request.created_at,
                     read: false,
                     action: () => router.push('/file-action-requests')
