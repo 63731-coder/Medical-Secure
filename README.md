@@ -97,10 +97,20 @@ chmod +x start-https.sh
 
 The script will automatically:
 - ✅ Generate SSL certificates (if not already present)
+The script will automatically:
+- ✅ Generate SSL certificates (if not already present)
 - ✅ Build and start all Docker services
 - ✅ Configure nginx reverse proxy with TLS 1.2/1.3
 - ✅ Setup all services in Docker network
 - ✅ Display service status
+
+**⚠️ Important - Database Migrations:**
+After starting the services for the first time, you need to apply Django migrations:
+```bash
+cd backend
+python manage.py makemigrations
+python manage.py migrate
+```
 
 ### 🌐 Access the Application
 
