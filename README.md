@@ -14,77 +14,75 @@ Medical Secure is a secure medical records management system that allows doctors
 
 ### Architecture
 
-The application consists of three main components:
+The application uses a secure containerized architecture with nginx as reverse proxy:
 
-1. **Backend (Django REST API)** - Port 8000
+```
+Client Browser (HTTPS)
+    ↓ TLS 1.2/1.3
+Nginx Reverse Proxy (Port 443/80)
+    ↓ HTTP (internal Docker network - secure)
+    ├─→ Frontend (Vue.js) - Container: medical-frontend
+    ├─→ Backend (Django) - Container: medical-backend
+    ├─→ Keycloak (Auth) - Container: medical-keycloak
+    └─→ ELK Stack (Logs) - Containers: elasticsearch, logstash, kibana
+```
+
+**Security Model:**
+- All external traffic is encrypted with TLS 1.2/1.3
+- Internal services communicate within isolated Docker network
+- Only nginx port 443 (HTTPS) and 80 (HTTP→HTTPS redirect) are exposed
+- Backend, frontend, and Keycloak are NOT directly accessible from outside
+
+**Components:**
+
+1. **Nginx Reverse Proxy**
+   - TLS termination with modern cipher suites
+   - Security headers (HSTS, CSP, X-Frame-Options, etc.)
+   - Routes traffic to internal services
+   - Automatic HTTP to HTTPS redirection
+
+2. **Backend (Django REST API)**
    - Handles business logic and data management
-   - Implements end-to-end encryption for medical records
-   - Integrates with Keycloak for authentication
-   - Connects to PostgreSQL database
+   - End-to-end encryption for medical records
+   - Keycloak integration for authentication
+   - PostgreSQL database connection
 
-2. **Frontend (Vue.js SPA)** - Port 5173
+3. **Frontend (Vue.js SPA)**
    - Modern single-page application
-   - User interface for doctors and patients
    - Client-side encryption/decryption of medical data
+   - Keycloak OAuth2/OIDC authentication flow
 
-3. **Authentication (Keycloak)** - Port 8080
+4. **Authentication (Keycloak)**
    - Identity and access management
-   - Pre-configured realm with doctor and patient roles
-   - OAuth 2.0 / OpenID Connect authentication
+   - Pre-configured realm with HTTPS redirect URIs
+   - OAuth 2.0 / OpenID Connect
+   - Passwordless authentication support
 
-4. **Database (PostgreSQL)** - Port 5432
-   - Stores encrypted medical records
-   - User data and relationships
+5. **Database (PostgreSQL x2)**
+   - medical-postgres: Application data (encrypted medical records)
+   - keycloak-postgres: Keycloak user data
+
+6. **ELK Stack (Monitoring)**
+   - Elasticsearch: Log storage and indexing
+   - Logstash: Log processing and enrichment
+   - Kibana: Log visualization and analysis
 
 ## Prerequisites
 
-### For Ubuntu 22.04 (x64)
+- **Docker Desktop** (Windows) or **Docker + Docker Compose** (Linux/Mac)
+- That's it! Everything else runs in containers.
 
-- Python 3.10 or higher
-- Node.js 20.x or higher
-- PostgreSQL 15
-- Keycloak 23.0
-- Docker and Docker Compose (recommended)
+**Tested on:**
+- Windows 10/11 (x64)
+- Ubuntu 22.04 (x64)
 
-### For Windows 10 (x64)
-
-- Python 3.10 or higher
-- Node.js 20.x or higher
-- PostgreSQL 15
-- Keycloak 23.0
-- Docker Desktop (recommended)
+**Note:** Python, Node.js, PostgreSQL, and Keycloak are NOT required on your host machine - they run inside Docker containers.
 
 ## Getting Started
 
-You have three options to setup and run the application:
-1. **Automated Setup with HTTPS** (Recommended for production-like testing) - Using TLS/SSL
-2. **Automated Setup** (Quick start for development) - Using HTTP scripts
-3. **Manual Setup** - Using terminal commands
+### 🚀 Quick Start (Recommended)
 
----
-
-## Option 1: Automated Setup with HTTPS/TLS (Recommended)
-
-This option starts the application with **TLS/SSL encryption** using nginx as a reverse proxy, providing a production-like secure environment.
-
-### Step 1: Generate SSL Certificates
-
-The SSL certificates are automatically generated when you first run the start script. However, if you want to generate them manually:
-
-**On Windows:**
-```cmd
-cd certs
-generate-certs.bat
-```
-
-**On Ubuntu:**
-```bash
-cd certs
-chmod +x generate-certs.sh
-./generate-certs.sh
-```
-
-### Step 2: Start with HTTPS
+The application runs with **full TLS/HTTPS encryption** using nginx as a reverse proxy. Everything is containerized with Docker for easy deployment.
 
 **On Windows:**
 ```cmd
@@ -99,140 +97,61 @@ chmod +x start-https.sh
 
 The script will automatically:
 - ✅ Generate SSL certificates (if not already present)
-- ✅ Build and start all Docker services (PostgreSQL, Keycloak, Backend, Frontend, Nginx)
-- ✅ Configure nginx as reverse proxy with TLS/SSL
-- ✅ Apply database migrations
-- ✅ Setup secure HTTPS connections
+- ✅ Build and start all Docker services
+- ✅ Configure nginx reverse proxy with TLS 1.2/1.3
+- ✅ Setup all services in Docker network
+- ✅ Display service status
 
-### Access the Application (HTTPS)
+### 🌐 Access the Application
 
 Once the script finishes, open your browser:
 - **Frontend**: https://localhost (Main application)
-- **Backend API**: https://localhost/api
 - **Django Admin**: https://localhost/admin
-- **Keycloak**: https://localhost/auth
-- **Kibana**: https://localhost:5601
+- **Keycloak Admin**: https://localhost/auth/admin (admin/admin123)
+- **Kibana (Logs)**: https://localhost:5601
 
 ⚠️ **Important**: Your browser will show a security warning because the SSL certificate is self-signed for development. Click "Advanced" and "Proceed to localhost" to accept the certificate.
 
----
+### 🛑 Stop the Application
 
-## Option 2: Automated Setup (HTTP)
-
-This is the easiest way to get started. We provide automated scripts that handle everything for you.
-
-### Step 1: Run Setup Script
-
-**On Windows:**
 ```cmd
-setup.bat
+docker-compose down
 ```
 
-**On Ubuntu:**
-```bash
-chmod +x setup.sh
-./setup.sh
-```
+### 🔄 Restart with New Configuration
 
-The setup script will automatically:
-- ✅ Check if Docker, Python, and Node.js are installed
-- ✅ Start Docker services (PostgreSQL, Keycloak)
-- ✅ Install Python packages
-- ✅ Run database migrations
-- ✅ Install Node.js packages
+If you or your teammates clone the project from Git:
 
-### Step 2: Run the Application
-
-**On Windows:**
 ```cmd
-run.bat
+start-https.bat
 ```
 
-**On Ubuntu:**
-```bash
-./run.sh
+All configuration (Keycloak realm, HTTPS URLs, security settings) is automatically loaded from the repository files:
+- `keycloak-import/medical-realm.json` - Pre-configured Keycloak with HTTPS redirect URIs
+- `docker-compose.yml` - All environment variables and service configuration
+- `nginx/nginx.conf` - Reverse proxy with TLS configuration
+
+### 🔧 Troubleshooting Certificate Issues
+
+If certificates are corrupted (showing as directories instead of files):
+
+```cmd
+cd certs
+rmdir /s /q localhost.crt localhost.key 2>nul
+del /q openssl.cnf localhost.csr 2>nul
+cd ..
+start-https.bat
 ```
 
-The run script will automatically:
-- ✅ Start Docker services (if not already running)
-- ✅ Launch the backend server on port 8000 (in a new window)
-- ✅ Launch the frontend server on port 5173 (in a new window)
+### 🔑 Reset Keycloak Configuration
 
-### Access the Application
+If Keycloak has old configuration (wrong redirect URIs):
 
-Once the scripts finish, open your browser:
-- **Frontend**: http://localhost:5173
-- **Keycloak Admin**: http://localhost:8080 (admin/admin123)
-
----
-
-## Option 3: Manual Setup
-
-If you prefer to run commands manually, follow these steps:
-
-### Step 1: Install Dependencies
-
-**Install Docker and Docker Compose:**
-- Ubuntu: `sudo apt-get install docker.io docker-compose`
-- Windows: Install Docker Desktop from https://www.docker.com/products/docker-desktop
-
-### Step 2: Start Docker Services
-
-```bash
-docker-compose up -d
+```cmd
+reset-keycloak.bat
 ```
 
-Wait ~10 seconds for services to be ready (PostgreSQL, Keycloak).
-
-> **Note**: The `backend/.env` file is already included in the repository with all necessary configuration (Django settings, database credentials, Keycloak configuration).
-
-### Step 3: Setup Backend
-
-```bash
-cd backend
-pip install -r requirements.txt
-python manage.py migrate
-```
-
-### Step 4: Setup Frontend
-
-```bash
-cd frontend
-npm install
-```
-
-### Step 5: Start Backend Server
-
-Open a terminal and run:
-
-**On Ubuntu:**
-```bash
-cd backend
-python3 manage.py runserver 0.0.0.0:8000
-```
-
-**On Windows:**
-```bash
-cd backend
-python manage.py runserver 0.0.0.0:8000
-```
-
-
-### Step 6: Start Frontend Server
-
-Open another terminal and run:
-
-```bash
-cd frontend
-npm run dev
-```
-
-The frontend application will be available at http://localhost:5173
-
-### Access the Application
-
-- **Frontend**: http://localhost:5173
-- **Keycloak Admin**: http://localhost:8080 (admin/admin123)
+This will delete the Keycloak database and reimport the latest configuration from `keycloak-import/medical-realm.json`.
 
 ## Usage
 
@@ -263,160 +182,251 @@ The frontend application will be available at http://localhost:5173
 
 ## Configuration Details
 
-### Environment Variables (.env)
+### Environment Variables
 
-The `backend/.env` file contains all configuration settings:
+All configuration is managed through Docker Compose and environment variables. The main configurations are:
 
-```dotenv
-# Django Settings
-DJANGO_SECRET_KEY=dev-secret-key-change-in-production-...
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
-
-# Database Configuration
-DB_NAME=medical_secure
-DB_USER=medical_user
-DB_PASSWORD=secure123
-DB_HOST=localhost
-DB_PORT=5432
-
-# Keycloak Configuration
-KEYCLOAK_SERVER_URL=http://localhost:8080
-KEYCLOAK_REALM=medical-realm
-KEYCLOAK_CLIENT_ID=medical-app
-KEYCLOAK_CLIENT_SECRET=WTpUYIN6Vsg6QeRWwm6H7k6pPLDq9fXw
-
-# Google reCAPTCHA Configuration (for bot protection)
-RECAPTCHA_SECRET_KEY=6Lfb-T8sAAAAAGIJwbF7Zh-6a0u-ExsozUXyfpD2
+**Backend Configuration** (in `docker-compose.yml`):
+```yaml
+environment:
+  DJANGO_SECRET_KEY: dev-secret-key-change-in-production
+  DEBUG: "True"
+  ALLOWED_HOSTS: localhost,127.0.0.1,backend
+  KEYCLOAK_SERVER_URL: http://keycloak:8080  # Internal URL
+  KEYCLOAK_PUBLIC_URL: https://localhost/auth  # External URL via nginx
+  KEYCLOAK_REALM: medical-realm
+  KEYCLOAK_CLIENT_ID: medical-app
+  RECAPTCHA_SECRET_KEY: 6Lfb-T8sAAAAAGIJwbF7Zh-6a0u-ExsozUXyfpD2
 ```
 
-**Note**: In a production environment, the .env file should be added to .gitignore and managed securely.
+**Frontend Configuration** (in `docker-compose.yml`):
+```yaml
+environment:
+  VITE_API_URL: https://localhost/api  # API accessible via nginx
+```
+
+**Keycloak Configuration** (in `docker-compose.yml`):
+```yaml
+environment:
+  KC_HOSTNAME_URL: https://localhost/auth  # Public URL
+  KC_PROXY: edge  # Behind reverse proxy
+  KEYCLOAK_ADMIN: admin
+  KEYCLOAK_ADMIN_PASSWORD: admin123
+```
+
+### Keycloak Realm Import
+
+The Keycloak realm configuration is automatically imported from `keycloak-import/medical-realm.json`:
+- Pre-configured client: `medical-app`
+- Client secret: `WTpUYIN6Vsg6QeRWwm6H7k6pPLDq9fXw`
+- Redirect URIs: `https://localhost/*`, `https://localhost/callback`
+- Web origins: `https://localhost`
+
+**When teammates clone the repository:** All Keycloak settings are already configured correctly for HTTPS!
 
 ### Google reCAPTCHA Setup
 
-The registration page uses **Google reCAPTCHA v3** (invisible) to prevent bot attacks. To configure:
+The registration page uses **Google reCAPTCHA v3** (invisible) to prevent bot attacks. The default keys are configured for localhost testing.
+
+**To use your own reCAPTCHA keys:**
 
 1. **Create a free reCAPTCHA account** at https://www.google.com/recaptcha/admin/create
 2. **Register a new site**:
-   - Label: `MedSecure App` (or any name)
-   - reCAPTCHA type: **v3** (invisible, no challenge)
-   - Domain: `localhost` (for development, just the hostname without protocol or port)
-3. **Copy your keys**:
-   - **Site key**: Copy and paste into [frontend/src/main.js](frontend/src/main.js) (replace the siteKey value in VueReCaptcha config)
-   - **Secret key**: Add to `backend/.env` as `RECAPTCHA_SECRET_KEY`
-4. **Restart both frontend and backend** to apply changes
+   - Label: `MedSecure App`
+   - reCAPTCHA type: **v3** (invisible)
+   - Domain: `localhost`
+3. **Update the keys**:
+   - **Site key**: Update in `frontend/src/main.js` (VueReCaptcha config)
+   - **Secret key**: Update `RECAPTCHA_SECRET_KEY` in `docker-compose.yml` backend environment
+4. **Rebuild containers**: `docker-compose up --build -d`
 
-> **Important**: The reCAPTCHA v3 is invisible - users won't see any checkbox or image challenge. It works automatically in the background to detect bots.
+> **Note**: reCAPTCHA v3 is invisible - no checkbox or image challenge appears. It analyzes user behavior to detect bots.
 
 ### Finding Keycloak Client Secret
 
-If you need to retrieve or regenerate the Keycloak client secret:
+The client secret is pre-configured in `keycloak-import/medical-realm.json`. To view or change it:
 
-1. Access Keycloak Admin Console at http://localhost:8080
-2. Login with `admin` / `admin123`
-3. Select the `medical-realm` realm (top-left dropdown)
-4. Navigate to **Clients** in the left menu
-5. Click on `medical-app`
-6. Go to the **Credentials** tab
-7. The **Client Secret** is displayed there
+1. Access Keycloak Admin at https://localhost/auth/admin
+2. Login: `admin` / `admin123`
+3. Select `medical-realm` (top-left dropdown)
+4. Go to **Clients** → `medical-app` → **Credentials** tab
+5. View/regenerate the client secret
 
-> **Note**: The default client secret is already configured in `.env` from the imported realm configuration.
+If you change it in Keycloak UI, update it in:
+- `keycloak-import/medical-realm.json` (to persist for teammates)
+- `docker-compose.yml` backend environment (optional, not currently used)
 
-### Database Connection Issues
-- Ensure Docker services are running: `docker ps`
-- Check if PostgreSQL is accessible: `docker logs medical-postgres`
-- Verify database credentials in `backend/.env`
+## Troubleshooting
 
-### Keycloak Issues
-- Check if Keycloak is running: `docker ps | grep keycloak`
-- Access logs: `docker logs medical-keycloak`
-- Verify Keycloak URL in `.env` matches: `http://localhost:8080`
+### Container Issues
+- **Check running containers**: `docker-compose ps`
+- **View container logs**: `docker-compose logs -f [service-name]`
+  - Services: `nginx`, `backend`, `frontend`, `keycloak`, `postgres`, `keycloak-db`
+- **Restart all services**: `docker-compose restart`
+- **Rebuild containers**: `docker-compose up --build -d`
 
-### Migrations Not Applied
-If you see "unapplied migrations" warning:
-```bash
-cd backend
-python manage.py migrate
+### Certificate Issues
+If certificates show as directories instead of files:
+```cmd
+cd certs
+rmdir /s /q localhost.crt localhost.key 2>nul
+del /q openssl.cnf 2>nul
+cd ..
+start-https.bat
 ```
 
-### Module Not Found Errors
-- Ensure all dependencies are installed: `pip install -r requirements.txt` and `npm install`
-- For Python: check if you're in the correct directory (`backend/`)
-- For Node.js: check if you're in the correct directory (`frontend/`)
+### Keycloak Redirect URI Errors
+If you see "Invalid parameter: redirect_uri":
+```cmd
+reset-keycloak.bat
+```
+This reimports the Keycloak configuration with correct HTTPS URIs.
 
-### Port Already in Use
-If ports 5432, 8000, 8080, or 5173 are already in use:
-- Check running processes: `netstat -ano | findstr "8000"` (Windows) or `lsof -i :8000` (Ubuntu)
-- Stop conflicting services or change ports in configuration files
+### Port Conflicts
+If Docker fails to start due to port conflicts:
+- Check what's using ports: `netstat -ano | findstr "443 80 8080 5432 5173 8000"`
+- Stop the conflicting service or change ports in `docker-compose.yml`
+
+### Browser Shows "NET::ERR_CERT_AUTHORITY_INVALID"
+This is normal for self-signed certificates:
+1. Click **Advanced**
+2. Click **Proceed to localhost (unsafe)**
+3. The certificate is valid for development only
+
+### Database Connection Issues
+- Ensure PostgreSQL containers are running: `docker ps | findstr postgres`
+- Check logs: `docker-compose logs postgres`
+- Verify database is initialized: `docker-compose exec backend python manage.py migrate`
+
+### Frontend Can't Connect to Backend
+- Verify nginx is running: `docker ps | findstr nginx`
+- Check nginx logs: `docker-compose logs nginx`
+- Ensure you're accessing via HTTPS: `https://localhost` (not http://localhost:5173)
+- Clear browser cache: `Ctrl+Shift+R`
 
 ---
 
 ## TLS/SSL Configuration
 
-The application implements **TLS 1.2 and TLS 1.3** encryption for all communications through nginx reverse proxy.
+The application implements **TLS 1.2 and TLS 1.3** encryption for all external communications through nginx reverse proxy.
 
-### Architecture
+### Security Architecture
 
 ```
-Client Browser (HTTPS)
-    ↓ TLS/SSL
+Internet/Browser (HTTPS - Encrypted)
+    ↓ TLS 1.2/1.3
 Nginx Reverse Proxy (Port 443)
-    ↓ HTTP (internal Docker network)
-    ├─→ Frontend (Vue.js) - Port 5173
-    ├─→ Backend (Django) - Port 8000
-    └─→ Keycloak - Port 8080
+    ↓ HTTP (Internal Docker Network - Isolated & Secure)
+    ├─→ Frontend (Vue.js)
+    ├─→ Backend (Django API)
+    └─→ Keycloak (Authentication)
 ```
 
-### Security Features
+**Why this design?**
+- TLS termination at nginx reduces complexity and improves performance
+- Internal services don't need TLS certificates
+- Docker network isolation prevents external access to internal services
+- Only nginx port 443 (HTTPS) and 80 (HTTP redirect) are exposed
 
-1. **SSL/TLS Configuration**:
-   - TLS 1.2 and TLS 1.3 protocols
-   - Strong cipher suites (ECDHE, AES-GCM, ChaCha20-Poly1305)
-   - Perfect Forward Secrecy (PFS)
-   - Session caching for performance
+### Security Features Implemented
 
-2. **Security Headers**:
-   - `Strict-Transport-Security` (HSTS) - Force HTTPS for 1 year
-   - `X-Frame-Options` - Prevent clickjacking
-   - `X-Content-Type-Options` - Prevent MIME sniffing
-   - `X-XSS-Protection` - XSS filter enabled
-   - `Content-Security-Policy` - Control resource loading
-   - `Referrer-Policy` - Control referrer information
+1. **TLS/SSL Configuration** ([nginx/nginx.conf](nginx/nginx.conf)):
+   - TLS 1.2 and TLS 1.3 protocols only (TLS 1.0/1.1 disabled)
+   - Strong cipher suites: ECDHE-RSA-AES256-GCM-SHA384, ECDHE-RSA-AES128-GCM-SHA256, ECDHE-RSA-CHACHA20-POLY1305
+   - Perfect Forward Secrecy (PFS) enabled
+   - Session caching for performance (10MB cache, 10min timeout)
+   - SSL session tickets disabled for security
+
+2. **HTTP Security Headers**:
+   - `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` - Force HTTPS for 1 year
+   - `X-Frame-Options: DENY` - Prevent clickjacking
+   - `X-Content-Type-Options: nosniff` - Prevent MIME sniffing
+   - `X-XSS-Protection: 1; mode=block` - Enable XSS filter
+   - `Content-Security-Policy` - Control resource loading (scripts, styles, images, frames, connections)
+   - `Referrer-Policy: strict-origin-when-cross-origin` - Control referrer information
 
 3. **Automatic HTTP to HTTPS Redirection**:
-   - All HTTP (port 80) traffic is automatically redirected to HTTPS (port 443)
+   - All HTTP traffic (port 80) automatically redirects to HTTPS (port 443)
+   - 301 permanent redirect for SEO and security
+
+4. **Request Security**:
+   - Client body size limit: 100MB (for medical file uploads)
+   - Buffer size limits configured
+   - Timeouts configured appropriately
 
 ### Certificate Management
 
-For **development**, self-signed certificates are used:
-- Generated automatically by `generate-certs.sh` or `generate-certs.bat`
+**Development (Current Setup):**
+- Self-signed certificates generated automatically by `generate-certs.bat` or `generate-certs.sh`
 - Valid for 365 days
-- Include SAN (Subject Alternative Names) for localhost and 127.0.0.1
+- Subject Alternative Names (SAN) for localhost, 127.0.0.1, ::1
+- RSA 2048-bit key
+- SHA-256 signature
 
-For **production**, use certificates from:
-- **Let's Encrypt** (free, recommended) - https://letsencrypt.org/
-- A trusted Certificate Authority (CA)
+**Certificate Generation Options:**
+1. **OpenSSL** (if installed): `certs/generate-certs.bat` uses local OpenSSL
+2. **Docker** (fallback): Uses `alpine/openssl` Docker image if OpenSSL not found
+3. **mkcert** (recommended for trusted certs): See `certs/generate-certs-mkcert.bat`
 
-### Nginx Configuration
+**Production Recommendations:**
+- Use **Let's Encrypt** (free, automated renewal): https://letsencrypt.org/
+- Or purchase certificate from a trusted Certificate Authority (CA)
+- Never use self-signed certificates in production
 
-The nginx configuration ([nginx/nginx.conf](nginx/nginx.conf)) includes:
-- Reverse proxy for frontend, backend, and Keycloak
-- TLS termination
-- Security headers
-- Request size limits (100MB for file uploads)
-- Health check endpoint at `/health`
+### Nginx Reverse Proxy Configuration
+
+**Upstream Services** ([nginx/nginx.conf](nginx/nginx.conf)):
+- `frontend` → http://frontend:5173 (Vue.js dev server)
+- `backend` → http://backend:8000 (Django application)
+- `keycloak` → http://keycloak:8080 (Authentication server)
+
+**Routing Rules:**
+- `/` → Frontend (Vue.js SPA)
+- `/api/*` → Backend API
+- `/admin/*` → Django Admin
+- `/media/*` → Medical file storage
+- `/auth/*` → Keycloak (with URL rewrite /auth → /)
+- `/health` → Nginx health check
+
+**Special Keycloak Configuration:**
+- Keycloak requires `KC_PROXY=edge` and `KC_HOSTNAME_URL` set to public URL
+- Nginx rewrites `/auth/` to `/` before proxying to Keycloak
+- WebSocket support enabled for Keycloak admin console
 
 ---
 
 ## Security Note
 
 > **⚠️ Important - Security Best Practice:**  
-> For educational purposes, the `.env` file containing configuration secrets is included in this repository to simplify setup and evaluation. **In a professional/production environment, you should NEVER commit `.env` files to version control!** Always use `.gitignore` to exclude them and provide a `.env.example` template instead.
+> For educational purposes, configuration values are included directly in `docker-compose.yml` and repository files to simplify setup and evaluation. **In a professional/production environment:**
+> - Use `.env` files for secrets (excluded from Git with `.gitignore`)
+> - Use Docker secrets or environment variable injection
+> - Use a secrets management service (HashiCorp Vault, AWS Secrets Manager, etc.)
+> - Rotate credentials regularly
+> - Never commit secrets to version control
 
-## Security Checklist Report
+## Security Implementation
 
-> **📋 Security Documentation:**  
-> A comprehensive security checklist report covering all 15 security points is available in the `/rapports` folder:
->`Security_Checklist_Report.md`
+> **📋 Comprehensive Security Documentation:**  
+> Detailed security reports covering all implemented security measures:
+> - **`rapports/Security_Checklist_Report.md`** - Complete security checklist with implementations
+> - **`rapports/TLS_Configuration_Documentation.md`** - TLS/HTTPS configuration details
 >
-> This report detail how each security measure is implemented in our project, with code examples and explanations.
+> These reports explain:
+> - All 15+ security points implemented
+> - Code examples and file locations
+> - Architecture decisions and justifications
+> - Testing procedures and validation
+
+### Key Security Features
+
+1. **Transport Security**: TLS 1.2/1.3, HSTS, perfect forward secrecy
+2. **Authentication**: Keycloak OAuth2/OIDC, passwordless authentication support
+3. **Data Encryption**: End-to-end encryption for medical records (client-side)
+4. **Access Control**: Role-based access (doctors, patients), request-approve workflow
+5. **Input Validation**: ReCAPTCHA v3, CSRF protection, input sanitization
+6. **Security Headers**: CSP, X-Frame-Options, X-Content-Type-Options, etc.
+7. **Logging & Monitoring**: ELK stack for security event logging
+8. **Network Isolation**: Docker network, services not directly exposed
+9. **Audit Trail**: All access to medical records logged
+10. **Bot Protection**: Google reCAPTCHA v3 on registration

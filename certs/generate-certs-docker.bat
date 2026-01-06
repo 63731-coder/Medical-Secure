@@ -17,7 +17,16 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-REM Supprimer les anciens certificats s'ils existent
+REM Supprimer les anciens certificats/dossiers s'ils existent
+echo 🧹 Nettoyage des anciens fichiers...
+if exist "%CERTS_DIR%localhost.key\" (
+    rmdir /s /q "%CERTS_DIR%localhost.key"
+    echo    - Dossier localhost.key supprimé
+)
+if exist "%CERTS_DIR%localhost.crt\" (
+    rmdir /s /q "%CERTS_DIR%localhost.crt"
+    echo    - Dossier localhost.crt supprimé
+)
 if exist "%CERTS_DIR%localhost.key" del /f /q "%CERTS_DIR%localhost.key"
 if exist "%CERTS_DIR%localhost.crt" del /f /q "%CERTS_DIR%localhost.crt"
 if exist "%CERTS_DIR%localhost.csr" del /f /q "%CERTS_DIR%localhost.csr"

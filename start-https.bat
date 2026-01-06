@@ -5,7 +5,15 @@ echo 🚀 Démarrage de Medical Secure App avec TLS/HTTPS
 echo ================================================
 echo.
 
-REM Vérifier si les certificats existent
+REM Vérifier si les certificats existent (fichiers, pas dossiers)
+if exist ".\certs\localhost.key\" (
+    echo ⚠️  Dossier localhost.key détecté au lieu d'un fichier. Nettoyage requis...
+    goto generate_certs
+)
+if exist ".\certs\localhost.crt\" (
+    echo ⚠️  Dossier localhost.crt détecté au lieu d'un fichier. Nettoyage requis...
+    goto generate_certs
+)
 if not exist ".\certs\localhost.key" (
     goto generate_certs
 )

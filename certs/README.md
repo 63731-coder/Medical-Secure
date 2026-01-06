@@ -37,9 +37,3 @@ Ces certificats sont **auto-signés** et destinés **uniquement au développemen
 ### Firefox:
 1. Cliquez sur "Avancé" ou "Advanced"
 2. Cliquez sur "Accepter le risque et continuer" ou "Accept the Risk and Continue"
-
-## Production
-
-Pour la production, utilisez des certificats valides de:
-- Let's Encrypt (gratuit)
-- Une autorité de certification reconnue

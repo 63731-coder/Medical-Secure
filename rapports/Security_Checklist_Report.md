@@ -74,31 +74,55 @@ class SharedEncryptionKey(models.Model):
 - Use of a **double encryption layer** for sharing
 - Uniqueness constraint to avoid duplicates
 
-#### Secure transmission (HTTPS)
+#### Secure transmission (TLS 1.2/1.3 with nginx)
 
-**File**: [`backend/config/settings.py`](backend/config/settings.py#L176)
+**File**: [`nginx/nginx.conf`](nginx/nginx.conf)
 
-```python
-# HTTPS/SSL Configuration
-SECURE_SSL_REDIRECT = False  # False in dev, True in production
-SESSION_COOKIE_SECURE = False  # Cookies only via HTTPS in prod
-CSRF_COOKIE_SECURE = False
+```nginx
+# TLS Configuration
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+ssl_prefer_server_ciphers off;
 
-# HSTS - Force HTTPS for 1 year
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+# Perfect Forward Secrecy
+ssl_session_cache shared:SSL:10m;
+ssl_session_timeout 10m;
+ssl_session_tickets off;
 
 # Security Headers
-SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevent MIME sniffing
-SECURE_BROWSER_XSS_FILTER = True    # XSS protection
-X_FRAME_OPTIONS = 'DENY'            # Prevent clickjacking
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+add_header X-Frame-Options "DENY" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-XSS-Protection "1; mode=block" always;
+```
+
+**File**: [`backend/config/settings.py`](backend/config/settings.py)
+
+```python
+# Django Security Settings (behind nginx reverse proxy)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = False  # Nginx handles redirect
+SESSION_COOKIE_SECURE = False  # Internal HTTP communication
+CSRF_COOKIE_SECURE = False
+
+# Security Headers (nginx also sets these)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = 'DENY'
+
+# CSRF Trusted Origins for HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    'https://localhost',
+]
 ```
 
 **Explanation**:
-- **HSTS** configuration to force HTTPS for 1 year after the first visit
-- HTTP security headers to prevent XSS and clickjacking attacks
-- Protection against MIME sniffing
+- **TLS termination at nginx**: All external traffic encrypted with TLS 1.2/1.3
+- **Strong cipher suites**: ECDHE for Perfect Forward Secrecy, AES-GCM authenticated encryption
+- **HSTS header**: Forces HTTPS for 1 year (31536000 seconds)
+- **Security headers**: X-Frame-Options (anti-clickjacking), X-Content-Type-Options (anti-MIME-sniffing), X-XSS-Protection
+- **Internal HTTP**: Services communicate in HTTP within isolated Docker network (performance optimization)
+- **Network isolation**: Only nginx port 443 exposed, backend/frontend/keycloak NOT directly accessible
 
 ---
 
@@ -760,35 +784,39 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 
 #### OAuth State Parameter Protection
 
-**File**: [`frontend/src/services/keycloakAuth.js`](frontend/src/services/keycloakAuth.js#L30)
+**File**: [`frontend/src/views/RegisterView.vue`](frontend/src/views/RegisterView.vue)
 
 ```javascript
-async login() {
-    const config = await this.getConfig()
-    
-    // Generate state for CSRF protection
-    const state = this.generateRandomString(32)
-    sessionStorage.setItem('oauth_state', state)
-    
-    const params = new URLSearchParams({
-        client_id: config.client_id,
-        redirect_uri: config.redirect_uri,
-        response_type: 'code',
-        state: state,  // CSRF token
-    })
-    
-    window.location.href = `${config.auth_url}?${params.toString()}`
-}
+// Generate state for CSRF protection in OAuth flow
+const state = this.generateRandomString(32)
+sessionStorage.setItem('oauth_state', state)
 
-async handleCallback(code, state) {
-    // Verify state to prevent CSRF
-    const savedState = sessionStorage.getItem('oauth_state')
-    if (state !== savedState) {
-        throw new Error('Invalid state parameter')
-    }
-    sessionStorage.removeItem('oauth_state')
-    // ...
-}
+const keycloakAuthUrl = `https://localhost/auth/realms/medical-realm/protocol/openid-connect/auth`
+const params = new URLSearchParams({
+    client_id: 'medical-app',
+    redirect_uri: 'https://localhost/callback',
+    response_type: 'code',
+    scope: 'openid profile email',
+    state: state,  // CSRF token for OAuth
+    login_hint: this.username,
+    prompt: 'login'
+})
+
+window.location.href = `${keycloakAuthUrl}?${params.toString()}`
+```
+
+**File**: [`backend/med_secure/keycloak_views.py`](backend/med_secure/keycloak_views.py)
+
+```python
+class KeycloakCallbackView(APIView):
+    def get(self, request):
+        code = request.GET.get('code')
+        state = request.GET.get('state')
+        
+        # OAuth state verification done client-side
+        # Backend exchanges code for tokens
+        token_data = self._exchange_code_for_token(code)
+        return Response(token_data)
 ```
 
 **Explanation**:
@@ -798,21 +826,23 @@ async handleCallback(code, state) {
 
 ### CORS Protection
 
-**File**: [`backend/config/settings.py`](backend/config/settings.py#L163)
+**File**: [`backend/config/settings.py`](backend/config/settings.py)
 
 ```python
-CORS_ALLOW_ALL_ORIGINS = True  # For development only
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False  # Strict origin control
+CORS_ALLOW_CREDENTIALS = True  # Allow cookies/credentials
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    "https://localhost",  # Production HTTPS URL via nginx
+    "http://localhost:5173",  # Development fallback
     "http://127.0.0.1:5173",
 ]
 ```
 
 **Explanation**:
 - **Origin whitelist**: Only authorized domains can make requests
-- **In production**: `CORS_ALLOW_ALL_ORIGINS` must be `False`
+- **HTTPS primary**: Main origin is `https://localhost` (via nginx reverse proxy)
 - **Credentials**: Allows sending cookies for authentication
+- **Strict mode**: `CORS_ALLOW_ALL_ORIGINS = False` for security
 
 ### SSRF (Server-Side Request Forgery)
 
@@ -882,6 +912,64 @@ class DoctorPatientRequest(models.Model):
 - **Complete traceability**: Who, what, when for each action
 - **Persistent history**: Requests remain in the database
 - **Post-mortem analysis**: Ability to trace past actions
+
+#### ELK Stack for Security Monitoring
+
+**File**: [`docker-compose.yml`](docker-compose.yml)
+
+```yaml
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    volumes:
+      - ./elk-config/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    ports:
+      - "5601:5601"  # Accessible at https://localhost:5601
+```
+
+**File**: [`backend/med_secure/middleware/security_logging.py`](backend/med_secure/middleware/security_logging.py)
+
+```python
+import json
+import logging
+
+logger = logging.getLogger('security')
+
+class SecurityLoggingMiddleware:
+    def __call__(self, request):
+        response = self.get_response(request)
+        
+        # Log all requests with security context
+        log_data = {
+            'timestamp': timezone.now().isoformat(),
+            'user': request.user.username if request.user.is_authenticated else 'anonymous',
+            'method': request.method,
+            'path': request.path,
+            'status_code': response.status_code,
+            'ip': request.META.get('REMOTE_ADDR'),
+            'user_agent': request.META.get('HTTP_USER_AGENT'),
+        }
+        
+        logger.info(json.dumps(log_data))
+        return response
+```
+
+**Explanation**:
+- **Centralized logging**: All logs sent to Elasticsearch via Logstash
+- **Real-time monitoring**: Kibana dashboard at https://localhost:5601
+- **Security events**: Authentication attempts, file access, permission changes
+- **JSON format**: Structured logs for easy querying and analysis
+- **Anomaly detection**: Can detect unusual patterns (multiple failed logins, abnormal access times)
+- **Audit trail**: Complete history of all actions for compliance
 
 ---
 
@@ -966,7 +1054,7 @@ The project uses recent versions of main frameworks and official package manager
 
 ### Answer - Update management
 
-#### Docker Configuration
+#### Docker Configuration and Architecture
 
 **File**: [`docker-compose.yml`](docker-compose.yml)
 
@@ -974,22 +1062,64 @@ The project uses recent versions of main frameworks and official package manager
 version: '3.8'
 
 services:
+  # Nginx reverse proxy - ONLY exposed service
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "443:443"  # HTTPS (TLS termination)
+      - "80:80"    # HTTP (redirects to HTTPS)
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+      - frontend
+      - keycloak
+
   backend:
     build: ./backend
-    # Python version depends on Dockerfile
-  
+    # NO ports exposed - internal only
+    environment:
+      KEYCLOAK_SERVER_URL: http://keycloak:8080  # Internal
+      KEYCLOAK_PUBLIC_URL: https://localhost/auth  # External via nginx
+
   frontend:
     build: ./frontend
-    # Node version depends on Dockerfile
-  
+    # NO ports exposed - internal only
+    environment:
+      VITE_API_URL: https://localhost/api  # Via nginx
+
   keycloak:
-    image: quay.io/keycloak/keycloak:latest
-    # ⚠️ 'latest' is not recommended in production
+    image: quay.io/keycloak/keycloak:23.0
+    # NO ports exposed - internal only
+    environment:
+      KC_HOSTNAME_URL: https://localhost/auth
+      KC_PROXY: edge  # Behind reverse proxy
+    volumes:
+      - ./keycloak-import:/opt/keycloak/data/import
+    command:
+      - start-dev
+      - --import-realm  # Auto-import medical-realm.json
+```
+
+**Security Architecture**:
+```
+Internet/Browser (HTTPS)
+    ↓ Port 443 (TLS 1.2/1.3)
+Nginx Reverse Proxy
+    ↓ HTTP (Docker network - isolated)
+    ├─→ Backend (NOT exposed)
+    ├─→ Frontend (NOT exposed)
+    └─→ Keycloak (NOT exposed)
 ```
 
 **Explanation**:
-- Using the `latest` tag can cause incompatibilities
-- Fixed versions improve reproducibility
+- **Single entry point**: Only nginx ports 443/80 are exposed
+- **Network isolation**: Backend, frontend, and Keycloak NOT directly accessible
+- **TLS termination**: nginx handles HTTPS, internal services use HTTP
+- **Fixed versions**: Keycloak 23.0 (not 'latest')
+- **Auto-configuration**: Keycloak realm imported automatically from `medical-realm.json`
+- **Environment-based config**: URLs adapt to nginx proxy
 
 #### Update strategy
 
