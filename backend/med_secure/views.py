@@ -11,6 +11,11 @@ from .serializers import (
     RegisterSerializer, UserSerializer, DoctorPatientRequestSerializer,
     FileActionRequestSerializer, SharedEncryptionKeySerializer
 )
+from .utils.security_events import (
+    log_shared_key_created, log_file_uploaded, log_file_accessed,
+    log_file_deleted, log_unauthorized_access_attempt,
+    log_patient_doctor_relation_created
+)
 
 
 # ===========================
@@ -428,6 +433,14 @@ class DoctorPatientRequestViewSet(viewsets.ModelViewSet):
         # Execute action based on action_type
         if req.action_type == 'add':
             req.patient.appointed_doctors.add(req.doctor)
+            # Log patient-doctor relation creation
+            log_patient_doctor_relation_created(
+                patient_id=req.patient.id,
+                patient_username=req.patient.user.username,
+                doctor_id=req.doctor.id,
+                doctor_username=req.doctor.user.username,
+                initiated_by='doctor'
+            )
         elif req.action_type == 'remove':
             req.patient.appointed_doctors.remove(req.doctor)
         
@@ -539,9 +552,18 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
                 print(f"[DEBUG] Encrypted metadata - name present: {'name' in self.request.data}")
                 
                 # Save with only the foreign keys - encrypted fields are already in serializer.validated_data
-                serializer.save(
+                file_obj = self.request.FILES.get('file')
+                medical_file = serializer.save(
                     patient=user.patient_profile,
                     uploaded_by=user
+                )
+                
+                # Log file upload
+                log_file_uploaded(
+                    patient_id=user.patient_profile.id,
+                    doctor_id=None,
+                    filename=medical_file.name if medical_file.name else 'encrypted',
+                    file_size=file_obj.size if file_obj else 0
                 )
             except Exception as e:
                 print(f"[ERROR] Upload failed: {str(e)}")
@@ -626,8 +648,23 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
         # Patient can delete their files immediately
         if hasattr(request.user, 'patient_profile'):
             if medical_file.patient != request.user.patient_profile:
+                log_unauthorized_access_attempt(
+                    user_id=request.user.id,
+                    user_username=request.user.username,
+                    attempted_resource=f'delete_file_{medical_file.id}',
+                    reason='File does not belong to patient'
+                )
                 return Response({'error': 'Permission denied'}, 
                               status=status.HTTP_403_FORBIDDEN)
+            
+            # Log file deletion
+            log_file_deleted(
+                file_id=str(medical_file.id),
+                filename=medical_file.name if medical_file.name else 'encrypted',
+                deleted_by_user_id=request.user.id,
+                patient_id=medical_file.patient.id
+            )
+            
             return super().destroy(request, *args, **kwargs)
         
         # Doctor must request deletion
@@ -669,16 +706,39 @@ class MedicalFileViewSet(viewsets.ModelViewSet):
         medical_file = self.get_object()
         
         # Security check: user has access to this file
+        user_type = None
         if hasattr(request.user, 'patient_profile'):
+            user_type = 'patient'
             if medical_file.patient != request.user.patient_profile:
+                log_unauthorized_access_attempt(
+                    user_id=request.user.id,
+                    user_username=request.user.username,
+                    attempted_resource=f'download_file_{medical_file.id}',
+                    reason='File does not belong to patient'
+                )
                 return Response({'error': 'Permission denied'}, 
                               status=status.HTTP_403_FORBIDDEN)
         elif hasattr(request.user, 'doctor_profile'):
+            user_type = 'doctor'
             if not medical_file.patient.appointed_doctors.filter(
                 id=request.user.doctor_profile.id
             ).exists():
+                log_unauthorized_access_attempt(
+                    user_id=request.user.id,
+                    user_username=request.user.username,
+                    attempted_resource=f'download_file_{medical_file.id}',
+                    reason='Doctor not appointed to patient'
+                )
                 return Response({'error': 'Permission denied'}, 
                               status=status.HTTP_403_FORBIDDEN)
+        
+        # Log file access
+        log_file_accessed(
+            file_id=str(medical_file.id),
+            user_id=request.user.id,
+            user_type=user_type,
+            patient_id=medical_file.patient.id
+        )
         
         # Return file (already encrypted)
         # Note: Don't send filename in Content-Disposition as the real name is encrypted
@@ -905,6 +965,12 @@ class ShareEncryptionKeyView(APIView):
         
         # Check if doctor is appointed
         if doctor not in patient.appointed_doctors.all():
+            log_unauthorized_access_attempt(
+                user_id=request.user.id,
+                user_username=request.user.username,
+                attempted_resource=f'share_key_to_doctor_{doctor_id}',
+                reason='Doctor not appointed to patient'
+            )
             return Response({'error': 'Doctor is not appointed to this patient'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
@@ -913,6 +979,14 @@ class ShareEncryptionKeyView(APIView):
             patient=patient,
             doctor=doctor,
             defaults={'key': key}
+        )
+        
+        # Log encryption key sharing
+        log_shared_key_created(
+            patient_id=patient.id,
+            doctor_id=doctor.id,
+            patient_username=patient.user.username,
+            doctor_username=doctor.user.username
         )
         
         return Response({
@@ -949,6 +1023,12 @@ class GetSharedKeyView(APIView):
         
         # Check if doctor is appointed to this patient
         if doctor not in patient.appointed_doctors.all():
+            log_unauthorized_access_attempt(
+                user_id=request.user.id,
+                user_username=request.user.username,
+                attempted_resource=f'get_shared_key_patient_{patient_id}',
+                reason='Doctor not appointed to patient'
+            )
             return Response({'error': 'You are not appointed to this patient'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
