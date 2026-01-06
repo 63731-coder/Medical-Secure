@@ -54,3 +54,18 @@ elasticsearch_data/
 # .env
 # .env.local
 # .env.*.local
+
+# ========================
+# SSL/TLS CERTIFICATES
+# ========================
+# Never commit SSL private keys and certificates
+certs/*.key
+certs/*.crt
+certs/*.csr
+certs/*.pem
+certs/openssl.cnf
+# Keep the generation scripts and documentation
+!certs/generate-certs.sh
+!certs/generate-certs.bat
+!certs/.gitignore
+!certs/README.md

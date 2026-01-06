@@ -1,6 +1,55 @@
-version: '3.8'
-
 services:
+  # =========================
+  # BACKEND DJANGO
+  # =========================
+  
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medical-backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DATABASE_URL=postgresql://medical_user:secure123@postgres:5432/medical_secure
+      - KEYCLOAK_SERVER_URL=http://keycloak:8080
+      - ALLOWED_HOSTS=localhost,backend,nginx
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - medical-network
+    restart: unless-stopped
+
+  # =========================
+  # FRONTEND VUE.JS
+  # =========================
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: medical-frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=https://localhost/api
+      - VITE_KEYCLOAK_URL=https://localhost/auth
+    networks:
+      - medical-network
+    restart: unless-stopped
+
+  # =========================
+  # DATABASES
+  # =========================
+  
   postgres:
     image: postgres:15
     container_name: medical-postgres
@@ -112,6 +161,33 @@ services:
       elasticsearch:
         condition: service_healthy
     restart: unless-stopped
+
+  # =========================
+  # NGINX REVERSE PROXY with TLS
+  # =========================
+  
+  nginx:
+    image: nginx:alpine
+    container_name: medical-nginx
+    ports:
+      - "80:80"       # HTTP (redirection vers HTTPS)
+      - "443:443"     # HTTPS
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs/localhost.crt:/etc/nginx/ssl/localhost.crt:ro
+      - ./certs/localhost.key:/etc/nginx/ssl/localhost.key:ro
+    networks:
+      - medical-network
+    depends_on:
+      - backend
+      - frontend
+      - keycloak
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   medical-network:

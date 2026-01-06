@@ -56,13 +56,68 @@ The application consists of three main components:
 
 ## Getting Started
 
-You have two options to setup and run the application:
-1. **Automated Setup** (Recommended) - Using scripts
-2. **Manual Setup** - Using terminal commands
+You have three options to setup and run the application:
+1. **Automated Setup with HTTPS** (Recommended for production-like testing) - Using TLS/SSL
+2. **Automated Setup** (Quick start for development) - Using HTTP scripts
+3. **Manual Setup** - Using terminal commands
 
 ---
 
-## Option 1: Automated Setup
+## Option 1: Automated Setup with HTTPS/TLS (Recommended)
+
+This option starts the application with **TLS/SSL encryption** using nginx as a reverse proxy, providing a production-like secure environment.
+
+### Step 1: Generate SSL Certificates
+
+The SSL certificates are automatically generated when you first run the start script. However, if you want to generate them manually:
+
+**On Windows:**
+```cmd
+cd certs
+generate-certs.bat
+```
+
+**On Ubuntu:**
+```bash
+cd certs
+chmod +x generate-certs.sh
+./generate-certs.sh
+```
+
+### Step 2: Start with HTTPS
+
+**On Windows:**
+```cmd
+start-https.bat
+```
+
+**On Ubuntu:**
+```bash
+chmod +x start-https.sh
+./start-https.sh
+```
+
+The script will automatically:
+- ✅ Generate SSL certificates (if not already present)
+- ✅ Build and start all Docker services (PostgreSQL, Keycloak, Backend, Frontend, Nginx)
+- ✅ Configure nginx as reverse proxy with TLS/SSL
+- ✅ Apply database migrations
+- ✅ Setup secure HTTPS connections
+
+### Access the Application (HTTPS)
+
+Once the script finishes, open your browser:
+- **Frontend**: https://localhost (Main application)
+- **Backend API**: https://localhost/api
+- **Django Admin**: https://localhost/admin
+- **Keycloak**: https://localhost/auth
+- **Kibana**: https://localhost:5601
+
+⚠️ **Important**: Your browser will show a security warning because the SSL certificate is self-signed for development. Click "Advanced" and "Proceed to localhost" to accept the certificate.
+
+---
+
+## Option 2: Automated Setup (HTTP)
 
 This is the easiest way to get started. We provide automated scripts that handle everything for you.
 
@@ -111,7 +166,7 @@ Once the scripts finish, open your browser:
 
 ---
 
-## Option 2: Manual Setup
+## Option 3: Manual Setup
 
 If you prefer to run commands manually, follow these steps:
 
@@ -293,6 +348,63 @@ python manage.py migrate
 If ports 5432, 8000, 8080, or 5173 are already in use:
 - Check running processes: `netstat -ano | findstr "8000"` (Windows) or `lsof -i :8000` (Ubuntu)
 - Stop conflicting services or change ports in configuration files
+
+---
+
+## TLS/SSL Configuration
+
+The application implements **TLS 1.2 and TLS 1.3** encryption for all communications through nginx reverse proxy.
+
+### Architecture
+
+```
+Client Browser (HTTPS)
+    ↓ TLS/SSL
+Nginx Reverse Proxy (Port 443)
+    ↓ HTTP (internal Docker network)
+    ├─→ Frontend (Vue.js) - Port 5173
+    ├─→ Backend (Django) - Port 8000
+    └─→ Keycloak - Port 8080
+```
+
+### Security Features
+
+1. **SSL/TLS Configuration**:
+   - TLS 1.2 and TLS 1.3 protocols
+   - Strong cipher suites (ECDHE, AES-GCM, ChaCha20-Poly1305)
+   - Perfect Forward Secrecy (PFS)
+   - Session caching for performance
+
+2. **Security Headers**:
+   - `Strict-Transport-Security` (HSTS) - Force HTTPS for 1 year
+   - `X-Frame-Options` - Prevent clickjacking
+   - `X-Content-Type-Options` - Prevent MIME sniffing
+   - `X-XSS-Protection` - XSS filter enabled
+   - `Content-Security-Policy` - Control resource loading
+   - `Referrer-Policy` - Control referrer information
+
+3. **Automatic HTTP to HTTPS Redirection**:
+   - All HTTP (port 80) traffic is automatically redirected to HTTPS (port 443)
+
+### Certificate Management
+
+For **development**, self-signed certificates are used:
+- Generated automatically by `generate-certs.sh` or `generate-certs.bat`
+- Valid for 365 days
+- Include SAN (Subject Alternative Names) for localhost and 127.0.0.1
+
+For **production**, use certificates from:
+- **Let's Encrypt** (free, recommended) - https://letsencrypt.org/
+- A trusted Certificate Authority (CA)
+
+### Nginx Configuration
+
+The nginx configuration ([nginx/nginx.conf](nginx/nginx.conf)) includes:
+- Reverse proxy for frontend, backend, and Keycloak
+- TLS termination
+- Security headers
+- Request size limits (100MB for file uploads)
+- Health check endpoint at `/health`
 
 ---
 

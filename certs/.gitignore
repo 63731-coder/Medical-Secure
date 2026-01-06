@@ -1,0 +1,12 @@
+# Ignore les certificats SSL (données sensibles)
+*.key
+*.crt
+*.csr
+*.pem
+openssl.cnf
+
+# Garder uniquement les scripts de génération
+!generate-certs.sh
+!generate-certs.bat
+!.gitignore
+!README.md

@@ -1,7 +1,8 @@
 // Keycloak OAuth2 / OIDC Authentication Service
 import axios from 'axios'
 
-const API_URL = 'http://localhost:8000/api'
+// Utilise VITE_API_URL depuis les variables d'environnement ou fallback
+const API_URL = import.meta.env.VITE_API_URL || 'https://localhost/api'
 
 class KeycloakAuth {
   constructor() {
