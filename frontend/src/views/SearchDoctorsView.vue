@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * SearchDoctorsView - Search and appoint new doctors
+ * Patients can send access requests to doctors
+ */
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';

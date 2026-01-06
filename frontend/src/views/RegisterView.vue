@@ -47,21 +47,21 @@ export default {
           return
         }
 
-        // Attendre que reCAPTCHA soit prêt
+        // Wait for reCAPTCHA to be ready
         await this.recaptchaLoaded()
         
-        // Obtenir le token reCAPTCHA
+        // Get reCAPTCHA token
         const recaptchaToken = await this.executeRecaptcha('register')
 
-        // Génér un mot de passe temporaire simple
+        // Generate temporary simple password
         const tempPassword = this.generateTempPassword()
         
-        // IMPORTANT: Générer la clé de chiffrement AVANT de chiffrer les données
-        // Utilise username comme base (sera remplacé par keycloak_id après login)
+        // IMPORTANT: Generate encryption key BEFORE encrypting data
+        // Uses username as base (will be replaced by keycloak_id after login)
         deriveKeyFromUser(this.username)
         
-        // Chiffrer les données sensibles côté client AVANT envoi
-        // NOTE: username et email restent en clair (nécessaires pour l'auth)
+        // Encrypt sensitive data on client-side BEFORE sending
+        // NOTE: username and email remain in plaintext (required for auth)
         // NOTE: Doctor names are NOT encrypted (public professional info)
         const encryptedDateOfBirth = this.userType === 'patient' ? encryptMetadata(this.dateOfBirth) : null
         const encryptedFirstName = this.userType === 'patient' ? encryptMetadata(this.firstName) : this.firstName
@@ -91,14 +91,14 @@ export default {
         const response = await api.post('/auth/register/', payload)
 
         if (response.data) {
-          // Message de succès adapté au type d'utilisateur
+          // Success message adapted to user type
           const userTypeLabel = this.userType === 'patient' ? 'Patient' : 'Doctor'
           alert(`✅ ${userTypeLabel} account created successfully!\n\n🔐 Next steps:\n1. Enter your username: ${this.username}\n2. Setup your Passkey (fingerprint, Face ID, or security key)\n3. Future logins: Just use your Passkey!\n\n🔒 Passwordless = Maximum Security`)
           
-          // Stocker pour référence
+          // Store for reference
           sessionStorage.setItem('new_user', this.username)
           
-          // Générer state pour sécurité CSRF
+          // Generate state for CSRF security
           const state = this.generateRandomString(32)
           sessionStorage.setItem('oauth_state', state)
           
@@ -128,13 +128,13 @@ export default {
     },
 
     generateTempPassword() {
-      // Génère un code simple de 6 caractères alphanumériques
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // Sans caractères ambigus
+      // Generate simple 6-character alphanumeric code
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // Without ambiguous characters
       let code = ''
       for (let i = 0; i < 6; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length))
       }
-      // Retourne un password qui contient le code + suffixe pour respecter la policy
+      // Return password with code + suffix to meet policy requirements
       return code + '!Aa1'
     },
 

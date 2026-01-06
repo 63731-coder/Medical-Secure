@@ -85,6 +85,10 @@
 </template>
 
 <script setup>
+/**
+ * NotificationCenter - Bell icon with dropdown for pending requests
+ * Shows doctor access requests and file action requests for patients
+ */
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../services/api';

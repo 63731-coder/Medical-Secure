@@ -1,3 +1,7 @@
+"""
+URL routing configuration for med_secure app
+Defines API endpoints for authentication, patients, doctors, and files
+"""
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (

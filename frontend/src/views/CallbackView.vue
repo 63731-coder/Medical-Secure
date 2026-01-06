@@ -14,6 +14,10 @@
 </template>
 
 <script>
+/**
+ * CallbackView - OAuth2 callback handler for Keycloak authentication
+ * Exchanges authorization code for tokens and generates encryption key
+ */
 import keycloakAuth from '@/services/keycloakAuth'
 import api from '@/services/api'
 import { deriveKeyFromUser } from '@/utils/crypto'

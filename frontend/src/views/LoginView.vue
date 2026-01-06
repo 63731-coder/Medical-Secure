@@ -32,6 +32,10 @@
 
 
 <script>
+/**
+ * LoginView - Passwordless authentication page
+ * Redirects users to Keycloak for WebAuthn authentication
+ */
 export default {
     name: "LoginView",
     methods: {

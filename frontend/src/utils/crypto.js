@@ -1,8 +1,8 @@
 import CryptoJS from 'crypto-js';
 
-// Cette clé servira à chiffrer les données.
-// Dans un vrai projet "Zero Trust", elle est dérivée du mot de passe de l'utilisateur
-// et n'est JAMAIS envoyée au serveur.
+// This key is used to encrypt data.
+// In a true "Zero Trust" project, it's derived from the user's password
+// and is NEVER sent to the server.
 let SECRET_KEY = null;
 
 // Try to restore key from sessionStorage on module load
@@ -11,9 +11,9 @@ if (storedKey) {
     SECRET_KEY = storedKey;
 }
 
-// Fonction pour générer la clé secrète à partir du mot de passe (lors du Login)
+// Function to generate secret key from password (during Login)
 export const deriveKeyFromPassword = (password, salt = 'mon_sel_fixe_pour_le_projet') => {
-    // On utilise PBKDF2 qui est standard pour transformer un mot de passe en clé robuste
+    // We use PBKDF2 which is standard to transform a password into a robust key
     const key = CryptoJS.PBKDF2(password, salt, {
         keySize: 256 / 32,
         iterations: 100000  // NIST recommande minimum 100k iterations
@@ -43,24 +43,24 @@ export const clearEncryptionKey = () => {
     sessionStorage.removeItem('encryptionKey');
 };
 
-// Fonction pour chiffrer une donnée (ex: le nom du patient)
+// Function to encrypt data (e.g., patient name)
 export const encryptData = (data) => {
     if (!SECRET_KEY) {
-        console.error("Aucune clé de chiffrement définie ! L'utilisateur est-il connecté ?");
+        console.error("No encryption key defined! Is the user logged in?");
         return null;
     }
     return CryptoJS.AES.encrypt(data, SECRET_KEY).toString();
 };
 
-// Fonction pour déchiffrer une donnée (ex: pour afficher le dossier médical)
+// Function to decrypt data (e.g., to display medical file)
 export const decryptData = (cipherText) => {
     if (!SECRET_KEY) return null;
     try {
         const bytes = CryptoJS.AES.decrypt(cipherText, SECRET_KEY);
         return bytes.toString(CryptoJS.enc.Utf8);
     } catch (e) {
-        console.error("Erreur de déchiffrement", e);
-        return "Donnée illisible";
+        console.error("Decryption error", e);
+        return "Unreadable data";
     }
 };
 

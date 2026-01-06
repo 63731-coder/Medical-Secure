@@ -25,6 +25,10 @@ def pending_file_path(instance, filename):
 
 
 class Doctor(models.Model):
+    """
+    Doctor profile model. Links to Keycloak authentication.
+    Doctors can access patient files with patient approval.
+    """
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="doctor_profile"
     )
@@ -46,6 +50,10 @@ class Doctor(models.Model):
 
 
 class Patient(models.Model):
+    """
+    Patient profile model. All sensitive data is client-side encrypted.
+    Can appoint doctors to access their medical files.
+    """
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="patient_profile"
     )
@@ -143,6 +151,10 @@ class DoctorPatientRequest(models.Model):
 
 
 class MedicalFile(models.Model):
+    """
+    Medical file storage. All metadata is client-side encrypted.
+    Only accessible by patient and appointed doctors.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
     patient = models.ForeignKey(

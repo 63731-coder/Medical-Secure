@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * MyPatientsView - Doctor's list of appointed patients
+ * Shows decrypted patient data using shared encryption keys
+ */
 import { ref, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '../services/api';

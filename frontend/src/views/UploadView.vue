@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * UploadView - Upload encrypted medical files
+ * Patients: upload files directly | Doctors: create upload requests for approval
+ */
 import { ref, onMounted } from 'vue';
 import api from '../services/api';
 import { useRouter, useRoute } from 'vue-router';

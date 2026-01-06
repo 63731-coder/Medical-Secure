@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * ConfirmModal - Confirmation dialog for dangerous actions
+ * Requires user confirmation before proceeding
+ */
 import { defineProps, defineEmits } from 'vue';
 
 const props = defineProps({

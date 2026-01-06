@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * ProfileView - Display user profile with decrypted sensitive data
+ * Shows different fields based on user type (patient/doctor)
+ */
 import { ref, onMounted, computed } from 'vue';
 import { decryptMetadata } from '../utils/crypto';
 import api from '../services/api';

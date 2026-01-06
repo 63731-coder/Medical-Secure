@@ -1,7 +1,11 @@
+/**
+ * API service for backend communication
+ * Handles all HTTP requests with automatic JWT token injection
+ */
 import axios from 'axios';
 
 // Backend Django API base URL
-// Utilise VITE_API_URL depuis les variables d'environnement ou fallback
+// Uses VITE_API_URL from environment variables or fallback
 const apiClient = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'https://localhost/api',
     headers: {

@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * StatusAlert - Displays success, error, or info messages
+ * Used for inline feedback in forms and views
+ */
 defineProps({
     type: {
         type: String,

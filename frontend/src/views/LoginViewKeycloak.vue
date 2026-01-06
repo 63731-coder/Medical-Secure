@@ -33,6 +33,10 @@
 </template>
 
 <script>
+/**
+ * LoginViewKeycloak - Main login page with Keycloak WebAuthn authentication
+ * Supports passwordless login with biometric authentication
+ */
 import keycloakAuth from '@/services/keycloakAuth'
 import axios from 'axios'
 import { deriveKeyFromPassword } from '../utils/crypto'

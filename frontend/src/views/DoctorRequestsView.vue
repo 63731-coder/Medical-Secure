@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * DoctorRequestsView - Patient view for pending doctor access requests
+ * Patients can approve or reject requests from doctors
+ */
 import { ref, onMounted } from 'vue';
 import api from '../services/api';
 import StatusAlert from '../components/StatusAlert.vue';

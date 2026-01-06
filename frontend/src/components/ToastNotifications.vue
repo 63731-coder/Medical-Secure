@@ -43,6 +43,10 @@
 </template>
 
 <script setup>
+/**
+ * ToastNotifications - Display toast messages in top-right corner
+ * Auto-dismisses after a few seconds
+ */
 import { useNotifications } from '../composables/useNotifications';
 
 const { notifications, removeNotification } = useNotifications();

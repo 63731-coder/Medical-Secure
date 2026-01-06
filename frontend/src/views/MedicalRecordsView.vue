@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * MedicalRecordsView - Display and manage patient medical files
+ * Handles client-side encryption/decryption for patient and doctor access
+ */
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';

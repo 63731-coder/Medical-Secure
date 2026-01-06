@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * HomeView - Main dashboard after authentication
+ * Shows different navigation options based on user type (patient/doctor)
+ */
 import { ref, onMounted } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import api from '../services/api';

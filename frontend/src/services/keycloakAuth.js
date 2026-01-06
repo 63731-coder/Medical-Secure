@@ -1,7 +1,10 @@
-// Keycloak OAuth2 / OIDC Authentication Service
+/**
+ * Keycloak OAuth2 / OIDC Authentication Service
+ * Manages OAuth2 flow, token refresh, and user authentication
+ */
 import axios from 'axios'
 
-// Utilise VITE_API_URL depuis les variables d'environnement ou fallback
+// Uses VITE_API_URL from environment variables or fallback
 const API_URL = import.meta.env.VITE_API_URL || 'https://localhost/api'
 
 class KeycloakAuth {

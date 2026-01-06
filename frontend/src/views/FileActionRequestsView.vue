@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * FileActionRequestsView - Patient view for file action requests from doctors
+ * Handles upload, edit, and delete requests requiring patient approval
+ */
 import { ref, onMounted, computed } from 'vue';
 import api from '../services/api';
 import StatusAlert from '../components/StatusAlert.vue';

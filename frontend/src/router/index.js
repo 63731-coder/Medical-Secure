@@ -107,7 +107,7 @@ const router = createRouter({
 })
 
 
-// commentaire à enlever si on veut activer ne pas pouvoir naviger sans etre connecte
+// Comment to enable: prevent navigation without being logged in
 
 
 // Simple Navigation Guard

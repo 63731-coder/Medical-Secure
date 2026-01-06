@@ -1,9 +1,14 @@
+"""<
+Django admin configuration for medical secure app
+Minimizes exposed personal data in admin interface
+"""
 from django.contrib import admin
 from .models import Doctor, Patient, MedicalFile, DoctorPatientRequest, FileActionRequest, SharedEncryptionKey
 
 
 @admin.register(Doctor)
 class DoctorAdmin(admin.ModelAdmin):
+    """Admin interface for Doctor model - shows minimal data"""
     # Only show ID and public professional info (organisation)
     # Hide: user, keycloak_id (identification data)
     list_display = ['id', 'organisation']
@@ -14,6 +19,7 @@ class DoctorAdmin(admin.ModelAdmin):
 
 @admin.register(Patient)
 class PatientAdmin(admin.ModelAdmin):
+    """Admin interface for Patient model - shows only encrypted data"""
     # Only show ID and encrypted fields (Base64 blobs)
     # Hide: user, keycloak_id (identification data)
     list_display = ['id', 'first_name', 'last_name', 'date_of_birth']
@@ -25,6 +31,7 @@ class PatientAdmin(admin.ModelAdmin):
 
 @admin.register(MedicalFile)
 class MedicalFileAdmin(admin.ModelAdmin):
+    """Admin interface for MedicalFile model - shows encrypted metadata only"""
     # Only show ID, encrypted fields (Base64), timestamps
     # Hide: patient, uploaded_by (identification data)
     list_display = ['id', 'name', 'created_at']

@@ -1,3 +1,7 @@
+"""
+Main URL routing configuration for the medical secure project
+Routes admin and API endpoints
+"""
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings

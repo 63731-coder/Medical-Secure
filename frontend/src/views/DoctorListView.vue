@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * DoctorListView - Patient's list of appointed doctors
+ * Allows revoking access for doctors
+ */
 import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';

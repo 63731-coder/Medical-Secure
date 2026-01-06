@@ -111,6 +111,10 @@
 </template>
 
 <script setup>
+/**
+ * AddPatientView - Doctor view to request access to patient records
+ * Sends access requests that require patient approval
+ */
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api';

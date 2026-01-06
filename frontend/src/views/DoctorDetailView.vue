@@ -1,4 +1,8 @@
 ﻿<script setup>
+/**
+ * DoctorDetailView - Detailed view of a specific doctor
+ * Patients can revoke doctor access from this view
+ */
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '@/services/api';

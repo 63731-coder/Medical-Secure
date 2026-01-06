@@ -39,11 +39,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Tiers (third-party)
+    # Third-party apps
     'rest_framework',
-    'rest_framework.authtoken',  # Pour authentification Token simple
+    'rest_framework.authtoken',  # For simple token authentication
     'corsheaders',
-    # Nos apps
+    # Our apps
     'med_secure',
 ]
 
@@ -118,14 +118,14 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# Configuration DRF (Django REST Framework)
+# DRF (Django REST Framework) configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'med_secure.keycloak_auth.KeycloakAuthentication',  # Keycloak JWT authentication
-        'rest_framework.authentication.SessionAuthentication',  # Pour l'admin Django
+        'rest_framework.authentication.SessionAuthentication',  # For Django admin
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',  # Tout est privé par défaut
+        'rest_framework.permissions.IsAuthenticated',  # Everything is private by default
     ],
 }
 
@@ -147,7 +147,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# Configuration des fichiers uploadés (Media files)
+# Uploaded files configuration (Media files)
 import os
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -167,9 +167,9 @@ CORS_ALLOWED_ORIGINS = [
 # ===========================
 # KEYCLOAK CONFIGURATION
 # ===========================
-# URL interne pour les appels backend -> Keycloak (dans Docker network)
+# Internal URL for backend -> Keycloak calls (inside Docker network)
 KEYCLOAK_SERVER_URL = config('KEYCLOAK_SERVER_URL', default='http://keycloak:8080')
-# URL publique pour les redirections frontend (via nginx)
+# Public URL for frontend redirects (via nginx)
 KEYCLOAK_PUBLIC_URL = config('KEYCLOAK_PUBLIC_URL', default='https://localhost/auth')
 KEYCLOAK_REALM = config('KEYCLOAK_REALM', default='medical-realm')
 KEYCLOAK_CLIENT_ID = config('KEYCLOAK_CLIENT_ID', default='medical-app')

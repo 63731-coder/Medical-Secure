@@ -1,3 +1,7 @@
+"""
+Keycloak JWT authentication backend for Django REST Framework
+Validates JWT tokens from Keycloak and syncs users to local database
+"""
 from rest_framework import authentication, exceptions
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -9,6 +13,10 @@ from .models import Doctor, Patient
 
 
 class KeycloakAuthentication(authentication.BaseAuthentication):
+    """
+    Custom authentication class for Keycloak JWT tokens
+    Validates tokens and synchronizes user data with local database
+    """
 
     def authenticate(self, request):
         auth = request.META.get("HTTP_AUTHORIZATION", "")
