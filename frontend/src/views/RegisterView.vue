@@ -62,9 +62,10 @@ export default {
         
         // Chiffrer les données sensibles côté client AVANT envoi
         // NOTE: username et email restent en clair (nécessaires pour l'auth)
+        // NOTE: Doctor names are NOT encrypted (public professional info)
         const encryptedDateOfBirth = this.userType === 'patient' ? encryptMetadata(this.dateOfBirth) : null
-        const encryptedFirstName = encryptMetadata(this.firstName)
-        const encryptedLastName = encryptMetadata(this.lastName)
+        const encryptedFirstName = this.userType === 'patient' ? encryptMetadata(this.firstName) : this.firstName
+        const encryptedLastName = this.userType === 'patient' ? encryptMetadata(this.lastName) : this.lastName
         
         const payload = {
           username: this.username,  // Plaintext
@@ -75,7 +76,7 @@ export default {
           // Plaintext versions for Keycloak UI
           plaintext_first_name: this.firstName,
           plaintext_last_name: this.lastName,
-          // Encrypted versions for Django DB
+          // For patients: encrypted, for doctors: plaintext
           first_name: encryptedFirstName,
           last_name: encryptedLastName
         }

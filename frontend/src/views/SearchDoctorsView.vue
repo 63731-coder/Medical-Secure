@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import api from '@/services/api';
 import StatusAlert from '../components/StatusAlert.vue';
-import { encryptKeyForDoctor, decryptMetadata } from '../utils/crypto';
+import { encryptKeyForDoctor } from '../utils/crypto';
 
 const query = ref('');
 const allDoctors = ref([]);
@@ -47,21 +47,25 @@ const fetchDoctors = async () => {
     }
 };
 
-// Decrypt doctor names using patient's own key
+// Check if a string looks like encrypted data (Base64 CryptoJS format)
+const isEncryptedString = (str) => {
+    if (!str) return false;
+    return str.startsWith('U2FsdGVkX1');
+};
+
+// Get doctor names - NOT encrypted (public professional info)
 const decryptDoctorsData = async () => {
     for (const doctor of allDoctors.value) {
-        try {
-            const firstName = doctor.user.first_name ? decryptMetadata(doctor.user.first_name) : '';
-            const lastName = doctor.user.last_name ? decryptMetadata(doctor.user.last_name) : '';
-            
-            decryptedDoctors.value[doctor.id] = { firstName, lastName };
-        } catch (e) {
-            // Fallback to username if decryption fails
-            decryptedDoctors.value[doctor.id] = {
-                firstName: doctor.user.username,
-                lastName: ''
-            };
+        let firstName = doctor.user.first_name || '';
+        let lastName = doctor.user.last_name || '';
+        
+        // Check if names are encrypted (legacy data) - use username instead
+        if (isEncryptedString(firstName) || isEncryptedString(lastName)) {
+            firstName = doctor.user.username;
+            lastName = '';
         }
+        
+        decryptedDoctors.value[doctor.id] = { firstName, lastName };
     }
 };
 

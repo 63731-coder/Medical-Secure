@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import api from '../services/api';
 import StatusAlert from '../components/StatusAlert.vue';
 import { useNotifications } from '../composables/useNotifications';
-import { getCurrentKey, decryptMetadata, encryptKeyForDoctor } from '../utils/crypto';
+import { getCurrentKey, encryptKeyForDoctor } from '../utils/crypto';
 
 const { success: notifySuccess, error: notifyError } = useNotifications();
 const requests = ref([]);
@@ -41,26 +41,28 @@ const fetchRequests = async () => {
     }
 };
 
-// Decrypt doctor names using patient's own key
+// Check if a string looks like encrypted data (Base64 CryptoJS format)
+const isEncryptedString = (str) => {
+    if (!str) return false;
+    return str.startsWith('U2FsdGVkX1');
+};
+
+// Get doctor names - NOT encrypted (public professional info)
 const decryptDoctorsData = async () => {
     for (const request of requests.value) {
-        try {
-            const doctor = request.doctor;
-            if (!doctor) continue;
-            
-            // Decrypt doctor's name using patient's own key (since names are encrypted in Django User)
-            const firstName = doctor.user.first_name ? decryptMetadata(doctor.user.first_name) : '';
-            const lastName = doctor.user.last_name ? decryptMetadata(doctor.user.last_name) : '';
-            
-            decryptedDoctors.value[doctor.id] = { firstName, lastName };
-        } catch (e) {
-            // Fallback to username if decryption fails
-            const doctor = request.doctor;
-            decryptedDoctors.value[doctor.id] = {
-                firstName: doctor.user.username,
-                lastName: ''
-            };
+        const doctor = request.doctor;
+        if (!doctor) continue;
+        
+        let firstName = doctor.user.first_name || '';
+        let lastName = doctor.user.last_name || '';
+        
+        // Check if names are encrypted (legacy data) - use username instead
+        if (isEncryptedString(firstName) || isEncryptedString(lastName)) {
+            firstName = doctor.user.username;
+            lastName = '';
         }
+        
+        decryptedDoctors.value[doctor.id] = { firstName, lastName };
     }
 };
 

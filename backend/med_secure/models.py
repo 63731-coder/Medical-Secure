@@ -37,7 +37,7 @@ class Doctor(models.Model):
     organisation = models.CharField(max_length=100)
 
     def __str__(self):
-        return f"Dr. {self.user.last_name} ({self.organisation})"
+        return f"{self.id}"
 
     class Meta:
         indexes = [
@@ -78,7 +78,7 @@ class Patient(models.Model):
     )
 
     def __str__(self):
-        return f"{self.user.first_name} {self.user.last_name}"
+        return f"{self.id}"
 
     class Meta:
         indexes = [
@@ -103,7 +103,7 @@ class SharedEncryptionKey(models.Model):
         ]
     
     def __str__(self):
-        return f"Key: {self.patient} → Dr. {self.doctor.user.last_name}"
+        return f"{self.id}"
 
 
 class DoctorPatientRequest(models.Model):
@@ -139,7 +139,7 @@ class DoctorPatientRequest(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.doctor} - {self.patient} ({self.action_type}/{self.status})"
+        return f"{str(self.id)[:8]}"
 
 
 class MedicalFile(models.Model):
@@ -178,7 +178,7 @@ class MedicalFile(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"File {self.id} - {self.patient.user.username}"
+        return f"{str(self.id)[:8]}"
 
 
 class FileActionRequest(models.Model):
@@ -235,7 +235,7 @@ class FileActionRequest(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.action_type} by Dr. {self.doctor.user.username} for {self.patient} ({self.status})"
+        return f"{str(self.id)[:8]}"
     
     def execute_action(self):
         """Execute the approved action
