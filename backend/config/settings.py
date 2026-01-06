@@ -167,11 +167,14 @@ CORS_ALLOWED_ORIGINS = [
 # ===========================
 # KEYCLOAK CONFIGURATION
 # ===========================
-KEYCLOAK_SERVER_URL = config('KEYCLOAK_SERVER_URL', default='http://localhost:8080')
+# URL interne pour les appels backend -> Keycloak (dans Docker network)
+KEYCLOAK_SERVER_URL = config('KEYCLOAK_SERVER_URL', default='http://keycloak:8080')
+# URL publique pour les redirections frontend (via nginx)
+KEYCLOAK_PUBLIC_URL = config('KEYCLOAK_PUBLIC_URL', default='https://localhost/auth')
 KEYCLOAK_REALM = config('KEYCLOAK_REALM', default='medical-realm')
 KEYCLOAK_CLIENT_ID = config('KEYCLOAK_CLIENT_ID', default='medical-app')
 KEYCLOAK_CLIENT_SECRET = config('KEYCLOAK_CLIENT_SECRET')
-KEYCLOAK_REDIRECT_URI = config('KEYCLOAK_REDIRECT_URI', default='http://localhost:5173/callback')
+KEYCLOAK_REDIRECT_URI = config('KEYCLOAK_REDIRECT_URI', default='https://localhost/callback')
 
 # ===========================
 # RECAPTCHA CONFIGURATION

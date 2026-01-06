@@ -11,12 +11,15 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend:/app
-    ports:
-      - "8000:8000"
+    # Port 8000 non exposé - accessible uniquement via nginx (https://localhost/api)
+    # ports:
+    #   - "8000:8000"
     environment:
       - DEBUG=True
       - DATABASE_URL=postgresql://medical_user:secure123@postgres:5432/medical_secure
       - KEYCLOAK_SERVER_URL=http://keycloak:8080
+      - KEYCLOAK_PUBLIC_URL=https://localhost/auth
+      - KEYCLOAK_REDIRECT_URI=https://localhost/callback
       - ALLOWED_HOSTS=localhost,backend,nginx
     depends_on:
       - postgres
@@ -37,8 +40,9 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    ports:
-      - "5173:5173"
+    # Port 5173 non exposé - accessible uniquement via nginx (https://localhost/)
+    # ports:
+    #   - "5173:5173"
     environment:
       - VITE_API_URL=https://localhost/api
       - VITE_KEYCLOAK_URL=https://localhost/auth
@@ -57,8 +61,9 @@ services:
       POSTGRES_DB: medical_secure
       POSTGRES_USER: medical_user
       POSTGRES_PASSWORD: secure123
-    ports:
-      - "5432:5432"
+    # Port 5432 non exposé - accessible uniquement depuis les conteneurs Docker
+    # ports:
+    #   - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -84,15 +89,19 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin123
-      KC_HOSTNAME: localhost
+      KC_HOSTNAME_URL: https://localhost/auth
+      KC_HOSTNAME_ADMIN_URL: https://localhost/auth
       KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_PROXY: edge
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak123
-    ports:
-      - "8080:8080"
+    # Port 8080 non exposé - accessible uniquement via nginx (https://localhost/auth)
+    # ports:
+    #   - "8080:8080"
     command: 
       - start-dev
       - --import-realm

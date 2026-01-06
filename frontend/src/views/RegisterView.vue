@@ -1,5 +1,5 @@
 ﻿<script>
-import axios from 'axios'
+import api from '@/services/api'
 import { useReCaptcha } from 'vue-recaptcha-v3'
 import { encryptMetadata, deriveKeyFromUser } from '@/utils/crypto'
 
@@ -88,7 +88,7 @@ export default {
           payload.organisation = this.organisation  // Plaintext for display
         }
 
-        const response = await axios.post('http://localhost:8000/api/auth/register/', payload)
+        const response = await api.post('/auth/register/', payload)
 
         if (response.data) {
           // Message de succès adapté au type d'utilisateur
@@ -102,10 +102,10 @@ export default {
           const state = this.generateRandomString(32)
           sessionStorage.setItem('oauth_state', state)
           
-          const keycloakAuthUrl = `http://localhost:8080/realms/medical-realm/protocol/openid-connect/auth`
+          const keycloakAuthUrl = `https://localhost/auth/realms/medical-realm/protocol/openid-connect/auth`
           const params = new URLSearchParams({
             client_id: 'medical-app',
-            redirect_uri: 'http://localhost:5173/callback',
+            redirect_uri: 'https://localhost/callback',
             response_type: 'code',
             scope: 'openid profile email',
             state: state,

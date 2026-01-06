@@ -442,12 +442,13 @@ class KeycloakConfigView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
+        # Utilise l'URL publique pour le frontend (via nginx)
         return Response({
-            'server_url': settings.KEYCLOAK_SERVER_URL,
+            'server_url': settings.KEYCLOAK_PUBLIC_URL,
             'realm': settings.KEYCLOAK_REALM,
             'client_id': settings.KEYCLOAK_CLIENT_ID,
-            'auth_url': f"{settings.KEYCLOAK_SERVER_URL}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/auth",
-            'token_url': f"{settings.KEYCLOAK_SERVER_URL}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/token",
+            'auth_url': f"{settings.KEYCLOAK_PUBLIC_URL}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/auth",
+            'token_url': f"{settings.KEYCLOAK_PUBLIC_URL}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/token",
             'redirect_uri': settings.KEYCLOAK_REDIRECT_URI,
         })
 
