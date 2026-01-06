@@ -9,6 +9,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 import requests
 from .models import Patient, Doctor
+from .utils.security_events import log_user_registered
 
 
 class KeycloakRegisterView(APIView):
@@ -192,6 +193,14 @@ class KeycloakRegisterView(APIView):
                     keycloak_id=keycloak_id,
                     organisation=organisation or ''  # Plaintext (or empty)
                 )
+            
+            # Log user registration
+            log_user_registered(
+                user_id=django_user.id,
+                username=username,
+                user_type=user_type,
+                keycloak_id=keycloak_id
+            )
 
             return Response({
                 'message': 'User registered successfully',

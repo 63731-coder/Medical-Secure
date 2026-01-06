@@ -63,7 +63,6 @@ export default {
         // Chiffrer les données sensibles côté client AVANT envoi
         // NOTE: username et email restent en clair (nécessaires pour l'auth)
         // NOTE: Doctor names are NOT encrypted (public professional info)
-        //       Only patient data is encrypted (sensitive health data)
         const encryptedDateOfBirth = this.userType === 'patient' ? encryptMetadata(this.dateOfBirth) : null
         const encryptedFirstName = this.userType === 'patient' ? encryptMetadata(this.firstName) : this.firstName
         const encryptedLastName = this.userType === 'patient' ? encryptMetadata(this.lastName) : this.lastName

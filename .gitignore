@@ -39,6 +39,13 @@ env/
 media/
 static/
 
+# Security Logs (Sensitive information)
+logs/
+*.log
+
+# ELK Stack data (Don't commit Elasticsearch indices)
+elasticsearch_data/
+
 # ========================
 # SECURITY (Environment vars)
 # ========================

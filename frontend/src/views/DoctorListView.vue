@@ -12,7 +12,7 @@ const error = ref('');
 const currentPatientId = ref(null);
 const showConfirmModal = ref(false);
 const doctorToRevoke = ref(null);
-const decryptedDoctors = ref({}); // Store doctor names
+const decryptedDoctors = ref({}); // Store decrypted doctor names
 
 onMounted(async () => {
     await fetchDoctors();
@@ -51,34 +51,22 @@ const fetchDoctors = async () => {
 // Check if a string looks like encrypted data (Base64 CryptoJS format)
 const isEncryptedString = (str) => {
     if (!str) return false;
-    // CryptoJS encrypted strings start with "U2FsdGVkX1" (Base64 for "Salted__")
     return str.startsWith('U2FsdGVkX1');
 };
 
-// Get doctor names - doctors' names should NOT be encrypted (public professional info)
-// But handle legacy encrypted names gracefully by falling back to username
+// Get doctor names - NOT encrypted (public professional info)
 const decryptDoctorsData = async () => {
     for (const doctor of doctors.value) {
-        try {
-            // Doctor names should be in plain text in Django User model
-            // If they look encrypted (legacy data), fall back to username
-            let firstName = doctor.user.first_name || '';
-            let lastName = doctor.user.last_name || '';
-            
-            // Check if names are encrypted (legacy issue) - use username instead
-            if (isEncryptedString(firstName) || isEncryptedString(lastName)) {
-                firstName = doctor.user.username;
-                lastName = '';
-            }
-            
-            decryptedDoctors.value[doctor.id] = { firstName, lastName };
-        } catch (e) {
-            // Fallback to username if something fails
-            decryptedDoctors.value[doctor.id] = {
-                firstName: doctor.user.username,
-                lastName: ''
-            };
+        let firstName = doctor.user.first_name || '';
+        let lastName = doctor.user.last_name || '';
+        
+        // Check if names are encrypted (legacy data) - use username instead
+        if (isEncryptedString(firstName) || isEncryptedString(lastName)) {
+            firstName = doctor.user.username;
+            lastName = '';
         }
+        
+        decryptedDoctors.value[doctor.id] = { firstName, lastName };
     }
 };
 
