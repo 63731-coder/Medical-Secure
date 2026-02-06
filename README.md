@@ -2,11 +2,11 @@
 
 ## Group Members
 
-- **63731** - Nicoleta Opre
-- **60991** - Aninia Negue
-- **62834** - Damian Wesolowski
-- **62642** - Christophe Antar
-- **62755** - Adam Moussa
+- Nicoleta Opre
+- Aninia Negue
+- Damian Wesolowski
+- Christophe Antar
+- Adam Moussa
 
 ## Project Description
 
